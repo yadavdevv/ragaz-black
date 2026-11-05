@@ -11,10 +11,13 @@ import { SWARAS } from "./music";
 export type Frame = { t: number; hz: number }; // hz = 0 when unvoiced
 export type Held = { pc: number; octave: number; start: number; duration: number };
 export type ReaderModel = { notes: number[]; moves: number[][] };
+export type ReaderRaga = { name: string; devanagari: string; notes: string[]; vadi: string; samvadi: string; pakad: string; time: string; hours: [number, number] | null; season: string | null; rasa: string; tanpura: string };
 export type Reader = {
   source: string;
   w_moves: number;
+  share_scale: number; // softmax sharpness, calibrated so shown confidence matches accuracy
   models: Record<string, ReaderModel>;
+  ragas: Record<string, ReaderRaga>;
   evaluation: Record<string, { top1: number; top3: number; windows: number; per_raga: Record<string, { top1: number; top3: number; windows: number }> }>;
 };
 
@@ -101,16 +104,27 @@ export function scorePhrase(phrase: Held[], model: ReaderModel, wMoves: number):
   return s;
 }
 
-/** Ragas ranked for a phrase, with a softmax share as a rough confidence. */
+/** Ragas ranked for a phrase, with a calibrated softmax share as the confidence. */
 export function read(phrase: Held[], reader: Reader): { raga: string; score: number; share: number }[] {
   const scored = Object.entries(reader.models).map(([raga, m]) => ({ raga, score: scorePhrase(phrase, m, reader.w_moves) }));
   scored.sort((a, b) => b.score - a.score);
-  // Scores are per-second/per-move log-likelihoods; scale by phrase size so longer phrases are more decisive.
-  const k = Math.max(1, Math.min(phrase.length, 30));
+  // Scores are per-second/per-move log-likelihoods; scale by phrase size so longer phrases are more decisive,
+  // then by share_scale (fitted on training recordings) so "80%" means right about 80% of the time.
+  const k = Math.max(1, Math.min(phrase.length, 30)) * reader.share_scale;
   const max = scored[0]?.score ?? 0;
   const exp = scored.map((r) => Math.exp(k * (r.score - max)));
   const z = exp.reduce((a, b) => a + b, 0);
   return scored.map((r, i) => ({ ...r, share: exp[i] / z }));
+}
+
+/** Notes that tip the reading toward `a` over `b`: time held × log-likelihood ratio, strongest first. */
+export function tellingNotes(phrase: Held[], a: ReaderModel, b: ReaderModel): { swara: string; weight: number }[] {
+  const by = new Map<string, number>();
+  for (const n of phrase) {
+    const s = SWARAS[n.pc];
+    by.set(s, (by.get(s) ?? 0) + n.duration * Math.log(a.notes[n.pc] / b.notes[n.pc]));
+  }
+  return [...by].map(([swara, weight]) => ({ swara, weight })).filter((x) => x.weight > 0).sort((x, y) => y.weight - x.weight);
 }
 
 /** The notes of the phrase that the chosen raga does not use, by time held (the "what pulled you away" line). */

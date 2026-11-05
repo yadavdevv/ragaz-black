@@ -65,6 +65,31 @@ def score(phrase: list[tuple[int, float, float]], model: dict) -> float:
     return float(s)
 
 
+def shares(scores: list[float], n_notes: int, scale: float) -> np.ndarray:
+    """Softmax over ragas; sharper for longer phrases. Same formula as web/lib/listen.ts read()."""
+    k = max(1, min(n_notes, 30)) * scale
+    x = np.exp(k * (np.array(scores) - max(scores)))
+    return x / x.sum()
+
+
+def calibrate(ragas: list[str], split: dict, cache: dict, seconds: float = 10.0) -> float:
+    """Pick the softmax sharpness so shown confidence matches accuracy, on training recordings only:
+    each training recording is read by models fitted without it (leave one recording out)."""
+    rows = []
+    for truth in ragas:
+        for held_out in split[truth]["train"]:
+            models = {r: fit([cache[r, s] for s in split[r]["train"] if s != held_out]) for r in ragas}
+            for phrase in windows(cache[truth, held_out], seconds):
+                rows.append(([score(phrase, models[r]) for r in ragas], len(phrase), ragas.index(truth)))
+    grid = np.geomspace(0.01, 2, 60)
+    nll = [-np.mean([np.log(shares(sc, n, c)[t] + 1e-12) for sc, n, t in rows]) for c in grid]
+    best = float(grid[int(np.argmin(nll))])
+    acc = np.mean([np.argmax(sc) == t for sc, _, t in rows])
+    conf = np.mean([shares(sc, n, best).max() for sc, n, _ in rows])
+    print(f"calibration (train, leave-one-recording-out, {len(rows)} windows): scale {best:.3f}; mean top share {conf:.0%} vs accuracy {acc:.0%}")
+    return best
+
+
 def windows(rec: list[tuple[int, float, float]], seconds: float):
     """Consecutive runs of held notes totalling `seconds` of sung time."""
     out, cur, t = [], [], 0.0
@@ -80,7 +105,8 @@ def windows(rec: list[tuple[int, float, float]], seconds: float):
 def main() -> None:
     split = json.loads(PROFILES_V6.read_text())["split"]
     ragas = list(split)
-    names = {k: r.name for k, r in load_ragas().items()}
+    R = load_ragas()
+    names = {k: r.name for k, r in R.items()}
     print(f"{len(ragas)} ragas: {', '.join(ragas)}")
     cache = {(r, s): held_notes(r, s) for r in ragas for part in ("train", "test") for s in split[r][part]}
     models = {r: fit([cache[r, s] for s in split[r]["train"]]) for r in ragas}
@@ -107,10 +133,16 @@ def main() -> None:
         print("  most confused: " + ", ".join(f"{names[a]} → {names[b]} {c}" for (a, b), c in confusions.most_common(6)))
 
     if "--export" in sys.argv:
+        scale = calibrate(ragas, split, cache)
+        test_conf = np.mean([shares([score(ph, models[r]) for r in ragas], len(ph), scale).max() for t in ragas for st in split[t]["test"] for ph in windows(cache[t, st], 10.0)])
+        print(f"held-out 10 s: mean shown confidence {test_conf:.0%} vs top-1 {results[10.0]['top1']:.0%}")
         OUT.write_text(json.dumps({
+            "share_scale": round(scale, 4),
             "source": "CompMusic Indian Art Music Raga Recognition Dataset (features), CC BY 4.0; training recordings only",
             "k_notes": K_NOTES, "k_moves": K_MOVES, "w_moves": W_MOVES,
             "models": {r: {k: np.round(v, 5).tolist() for k, v in models[r].items()} for r in ragas},
+            "ragas": {r: {"name": R[r].name, "devanagari": R[r].devanagari, "notes": sorted(R[r].notes, key=SWARAS.index), "vadi": R[r].vadi, "samvadi": R[r].samvadi,
+                          "pakad": R[r].pakad, "time": R[r].time, "hours": R[r].hours, "season": R[r].season, "rasa": R[r].rasa, "tanpura": R[r].tanpura} for r in ragas},
             "evaluation": {f"{s:.0f}s": v for s, v in results.items()},
         }))
         print(f"\nwrote {OUT}")

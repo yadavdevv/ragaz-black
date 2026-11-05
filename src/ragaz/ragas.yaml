@@ -8,6 +8,7 @@
 
 bhupali:
   name: Bhupali
+  devanagari: भूपाली
   thaat: Kalyan
   notes: "S R G P D"          # pentatonic: no Ma, no Ni
   vadi: G
@@ -21,6 +22,7 @@ bhupali:
 
 yaman:
   name: Yaman
+  devanagari: यमन
   thaat: Kalyan
   notes: "S R G M P D N"      # Ma is only tivra (M), never shuddh (m)
   vadi: G
@@ -34,6 +36,7 @@ yaman:
 
 malkauns:
   name: Malkauns
+  devanagari: मालकौंस
   thaat: Bhairavi
   notes: "S g m d n"          # komal Ga/Dha/Ni, no Re, no Pa
   vadi: m
@@ -50,6 +53,7 @@ deshkar:
   # Sources: indianclassicalmusic.com/deshkaar, darbar.org/raga/deshkar (2026-10-09).
   # No recordings in our CompMusic subset, so its style comes from these rules alone.
   name: Deshkar
+  devanagari: देशकार
   thaat: Bilawal
   notes: "S R G P D"          # Re is weak, often skipped going up
   vadi: D
@@ -72,6 +76,7 @@ deshkar:
 
 bhairav:
   name: Bhairav
+  devanagari: भैरव
   thaat: Bhairav
   notes: "S r G m P d N"      # komal Re and Dha, both sung with a slow andolan
   vadi: d
@@ -87,6 +92,7 @@ todi:
   # Miyan ki Todi. Pa is used sparingly (some sources skip it going up).
   # Vadi komal Dha per Bhatkhande; some musicians give that place to komal Ga.
   name: Todi
+  devanagari: तोड़ी
   thaat: Todi
   notes: "S r g M P d N"
   vadi: d
@@ -101,6 +107,7 @@ todi:
 shuddh_sarang:
   # No Ga at all; both Ma: tivra going up, shuddh in the descent to Re.
   name: Shuddh Sarang
+  devanagari: शुद्ध सारंग
   thaat: Kalyan
   notes: "S R m M P D N"
   vadi: R
@@ -116,6 +123,7 @@ madhuvanti:
   # Re and Dha are skipped going up (.N S g M P N S'). No published pakad was
   # found; this one is built from the ascent and descent, so treat it as weak.
   name: Madhuvanti
+  devanagari: मधुवंती
   thaat: Todi
   notes: "S R g M P D N"
   vadi: P
@@ -131,6 +139,7 @@ marwa:
   # No Pa; Sa is avoided inside phrases, which keep returning to komal Re.
   # Pakad is Bhatkhande's. The tanpura's first string is tuned to Ni.
   name: Marwa
+  devanagari: मारवा
   thaat: Marwa
   notes: "S r G M D N"
   vadi: r
@@ -146,6 +155,7 @@ bihag:
   # Re and Dha are skipped going up (.N S G m P N S'). Shuddh Ma is the main Ma;
   # tivra Ma appears only in P M G m G.
   name: Bihag
+  devanagari: बिहाग
   thaat: Bilawal
   notes: "S R G m M P D N"
   vadi: G
@@ -161,6 +171,7 @@ darbari:
   # Darbari Kanada. Komal Ga and Dha carry a slow, wide andolan; the raga lives
   # in the lower and middle octaves. Pakad from indianclassicalmusic.com.
   name: Darbari
+  devanagari: दरबारी
   thaat: Asavari
   notes: "S R g m P d n"
   vadi: R
@@ -177,6 +188,7 @@ miyan_malhar:
   # No sourced pakad was found specific to Miyan Malhar; these are its widely
   # cited Malhar-ang phrases. Treat as weak.
   name: Miyan Malhar
+  devanagari: मियाँ मल्हार
   thaat: Kafi
   notes: "S R g m P D n N"
   vadi: m
@@ -194,6 +206,7 @@ basant:
   # this one is built from the descent. Treat as weak.
   # Measured 2026-11-05: real singers spend 5% of their time on shuddh Ma, so it is allowed.
   name: Basant
+  devanagari: बसंत
   thaat: Purvi
   notes: "S r G m M P d N"     # shuddh Ma: 5% of sung time in the 10 CompMusic recordings
   vadi: S
