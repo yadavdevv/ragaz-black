@@ -274,18 +274,19 @@ def voices(ragas: dict, seconds: float = 10.0, hop: float = 0.02) -> list[dict]:
     return out
 
 
-LATEST_LABEL = "v5e"  # shown on the site as "the newest model · <label>"
-LATEST_RUN = "v5e-long-grpo-20261024-1940"
-LATEST_STEP = 30  # best checkpoint by real-twin score (experiments.md)
-LATEST_STYLE = "v5"  # the reward the run was trained and scored with
+LATEST_LABEL = "v6"  # shown on the site as "the newest model · <label>"
+LATEST_RUN = "v6-grpo-20261106-0017"
+LATEST_STEP = 60  # best checkpoint by real-twin score: reader 100%, twin 100%, realism 0.89
+LATEST_STYLE = "v6"  # the reward the run was trained and scored with
+# Previous newest: v5e-long-grpo-20261024-1940 step 30 (label v5e, reward v5).
 
 
 def latest(all_ragas: dict) -> dict:
-    """The newest model (v5e): 16-bar pieces for all four ragas, plus its rendered recordings.
+    """The newest model (LATEST_*): its 16-bar pieces for every raga it knows, plus its recordings.
 
-    Scores are the v5 reward the run was trained and evaluated with (the browser verifier
+    Scores are the reward the run was trained and evaluated with (the browser verifier
     implements v2, so these pieces are shown with their own run's scores, not re-scored).
-    Recordings: out/v5e-<raga>-{vocal,expressive}.wav, converted to MP3 in web/public/audio.
+    Recordings: out/<label>-<raga>-{vocal,expressive}.wav, converted to MP3 in web/public/audio.
     vocal = the DDSP voice trained on Carnatic women singers; expressive = the flute synth.
     """
     import subprocess
