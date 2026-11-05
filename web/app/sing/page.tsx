@@ -39,6 +39,8 @@ const asSung = (held: Held[]): Note[] => {
 const droneRaga = (tanpura = "P", key = "sing") => ({ key, tanpura }) as unknown as Raga;
 
 type Phase = "tune" | "listening" | "reading";
+type Cousin = { key: string; kind: "tune" | "scale"; title: string; from: string; credit: string | null; swaras: string[]; same_notes: string[]; heard: string[]; notes: Note[] };
+type Turn = { held: Held[]; raga: string; answer: Note[] | null };
 
 export default function Sing() {
   const data = useData();
@@ -50,13 +52,17 @@ export default function Sing() {
   const [held, setHeld] = useState<Held[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [answer, setAnswer] = useState<Note[] | null>(null);
-  const [playing, setPlaying] = useState<"mine" | "answer" | null>(null);
+  const [playing, setPlaying] = useState<string | null>(null);
+  const [live, setLive] = useState<{ raga: string; share: number }[]>([]);
+  const [cousins, setCousins] = useState<Cousin[]>([]);
+  const [turns, setTurns] = useState<Turn[]>([]);
   const mic = useRef<Mic | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const raf = useRef(0);
 
   useEffect(() => {
     fetch("/data/reader.json").then((r) => r.json()).then(setReader);
+    fetch("/data/cousins.json").then((r) => r.json()).then(setCousins);
     return () => {
       mic.current?.stop();
       cancelAnimationFrame(raf.current);
@@ -142,15 +148,21 @@ export default function Sing() {
     }
     ctx.stroke();
     setElapsed(t);
+    if (reader && m.frames.length % 30 === 0) {
+      const sofar = transcribe(m.frames, sa);
+      if (sofar.length >= 3) setLive(read(sofar, reader).slice(0, 3));
+    }
     if (t >= SECONDS) return finish();
     raf.current = requestAnimationFrame(draw);
-  }, [sa, finish]);
+  }, [sa, finish, reader]);
 
   const begin = useCallback(async () => {
     tick();
     setError(null);
+    if (phase === "reading" && held.length >= 3 && ranked[0]) setTurns((t) => [...t, { held, raga: ranked[0].raga, answer }]);
     setAnswer(null);
     setHeld([]);
+    setLive([]);
     try {
       await startDrone();
       const eng = getEngine();
@@ -170,7 +182,7 @@ export default function Sing() {
       setError("The microphone isn't available. Allow it in your browser's site settings and try again.");
       setPhase("tune");
     }
-  }, [startDrone, draw]);
+  }, [startDrone, draw, phase, held, answer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ranked = useMemo(() => (reader && held.length >= 3 ? read(held, reader) : []), [reader, held]);
   const top = ranked[0];
@@ -201,7 +213,7 @@ export default function Sing() {
     return near[Math.floor(Math.random() * near.length)];
   }, [data, top, held]);
 
-  const playNotes = async (notes: Note[], tempo: number, which: "mine" | "answer") => {
+  const playNotes = async (notes: Note[], tempo: number, which: string) => {
     tick();
     await startDrone(topRaga?.tanpura, top?.raga);
     const eng = getEngine();
@@ -238,6 +250,7 @@ export default function Sing() {
   const telling = top && ranked[1] && reader ? tellingNotes(held, reader.models[top.raga], reader.models[ranked[1].raga]).slice(0, 3) : [];
   const stray = topRaga ? strayNotes(held, topRaga.notes).filter((x) => x.seconds >= 0.3).slice(0, 2) : [];
   const sung = held.reduce((s, n) => s + n.duration, 0);
+  const kin = top ? cousins.filter((c) => c.same_notes.includes(top.raga) || c.heard[0] === top.raga).slice(0, 3) : [];
 
   return (
     <main className="bg-transparent">
@@ -281,6 +294,13 @@ export default function Sing() {
               </div>
               <div className="relative mt-4 h-[300px] sm:h-[360px]">
                 <canvas ref={canvas} className="absolute inset-0 h-full w-full" />
+                {phase === "listening" && live.length > 0 && reader && (
+                  <div className="pointer-events-none absolute right-2 top-1 text-right">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-kajal/45">hearing</div>
+                    <div className="font-deva text-[30px] leading-tight text-kajal transition-all">{reader.ragas[live[0].raga].devanagari}</div>
+                    <div className="text-[13px] text-kajal/60">{live.map((l) => `${reader.ragas[l.raga].name} ${Math.round(l.share * 100)}%`).join(" · ")}</div>
+                  </div>
+                )}
                 {phase !== "listening" && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 text-center">
                     <button onClick={begin} data-cursor="Sing" aria-label="Start singing"
@@ -341,6 +361,13 @@ export default function Sing() {
                     {telling.length > 0 && <>Your {list(telling.map((t) => NAMES[t.swara]))} {telling.length > 1 ? "point" : "points"} to {topRaga.name} over {reader!.ragas[ranked[1].raga].name}. </>}
                     {stray.length > 0 ? <>{topRaga.name} doesn&rsquo;t use {list(stray.map((s) => NAMES[s.swara]))}; you held {stray.length > 1 ? "them" : "it"} for {stray.reduce((a, s) => a + s.seconds, 0).toFixed(1)} s.</> : <>Every note you held belongs to {topRaga.name}.</>}
                   </p>
+                  {kin.length > 0 && (
+                    <p className="mt-4 text-[15px] leading-[1.55] text-kajal/75">
+                      Its cousins elsewhere: {kin.map((c, i) => (
+                        <span key={c.key}>{i > 0 && (i === kin.length - 1 ? " and " : ", ")}<button onClick={() => playNotes(c.notes, c.kind === "tune" ? 100 : 120, c.key)} className="underline decoration-sindoor/40 underline-offset-4 hover:decoration-sindoor">{c.title}</button></span>
+                      ))}.
+                    </p>
+                  )}
                   <div className="mt-6 flex flex-wrap gap-3">
                     {knows.has(top.raga) ? (
                       <Magnetic variant="solid" cursor="Listen" onClick={answerIt}>{playing === "answer" ? "Answering…" : answer ? "Hear the answer again" : "Hear its answer"}</Magnetic>
@@ -367,6 +394,62 @@ export default function Sing() {
           </aside>
         </div>
       </section>
+
+      {turns.length > 0 && reader && (
+        <section className="px-6 pb-16 sm:px-10">
+          <div className="mx-auto max-w-[1400px]">
+            <div className="text-[12px] uppercase tracking-[0.24em] text-sepia">Earlier in this conversation</div>
+            <ol className="mt-4 space-y-3">
+              {turns.map((t, i) => (
+                <li key={i} className="leaf-card grid gap-2 border border-rule p-4 sm:grid-cols-[9rem_1fr_1fr] sm:items-center">
+                  <span className="font-display text-[20px]">{reader.ragas[t.raga].name} <span className="font-deva text-kajal/60">{reader.ragas[t.raga].devanagari}</span></span>
+                  <button onClick={() => playNotes(asSung(t.held), 60, `turn-${i}`)} className="text-left font-mono text-[13px] tracking-wider text-kajal hover:text-sindoor">you · {t.held.map(token).join(" ")}</button>
+                  {t.answer ? (
+                    <button onClick={() => playNotes(t.answer!, data?.latest.tempo ?? 90, `turn-a-${i}`)} className="text-left font-mono text-[13px] tracking-wider text-sepia hover:text-sindoor">ragaz · {t.answer.map((n) => ".".repeat(Math.max(0, -n.o)) + n.s + "'".repeat(Math.max(0, n.o))).join(" ")}</button>
+                  ) : <span className="text-[13px] text-kajal/40">no answer asked</span>}
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+      )}
+
+      {cousins.length > 0 && reader && (
+        <section className="px-6 pb-24 sm:px-10">
+          <div className="mx-auto max-w-[1400px]">
+            <div className="text-[12px] uppercase tracking-[0.24em] text-sepia">Cousins</div>
+            <h2 className="mt-3 font-display text-[clamp(40px,6vw,84px)] leading-[0.95]">Ragas hiding in the world&rsquo;s music.</h2>
+            <p className="mt-5 max-w-[720px] text-[17px] leading-[1.55] text-kajal/75">
+              The reader has only ever heard Indian concert singers. Played tunes and scales from elsewhere, it still hears ragas in them. &ldquo;Same notes&rdquo; is a plain fact about the scale; &ldquo;hears&rdquo; is the reader&rsquo;s own verdict, and the two don&rsquo;t always agree.
+            </p>
+            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {cousins.map((c) => {
+                const heard = reader.ragas[c.heard[0]];
+                return (
+                  <button key={c.key} onClick={() => playNotes(c.notes, c.kind === "tune" ? 100 : 120, c.key)} data-cursor="Listen"
+                    className={`leaf-card group relative border p-6 text-left transition-colors ${playing === c.key ? "border-sindoor" : "border-rule hover:border-sindoor/60"}`}>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-[12px] uppercase tracking-[0.2em] text-kajal/45">{c.kind === "tune" ? "tune" : "scale"} · {c.from}</span>
+                      <span className="text-[13px] text-sindoor">{playing === c.key ? "playing…" : "▶"}</span>
+                    </div>
+                    <div className="mt-3 font-display text-[28px] leading-tight">{c.title}</div>
+                    <div className="mt-2 font-mono text-[13px] tracking-wider text-sepia">{c.swaras.join(" ")}</div>
+                    <div className="mt-5 flex items-end justify-between gap-4">
+                      <div>
+                        <div className="text-[12px] text-kajal/50">the reader hears</div>
+                        <div className="font-deva text-[30px] leading-tight">{heard.devanagari}</div>
+                        <div className="text-[15px]">{heard.name}</div>
+                      </div>
+                      <div className="text-right text-[13px] text-kajal/60">{c.same_notes.length ? <>same notes as<br /><span className="text-kajal">{c.same_notes.map((k) => reader.ragas[k]?.name ?? k[0].toUpperCase() + k.slice(1)).join(" and ")}</span></> : "no raga here uses exactly these notes"}</div>
+                    </div>
+                    {c.credit && <div className="mt-4 text-[12px] leading-[1.5] text-kajal/45">{c.credit}</div>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
       <Footer />
     </main>
   );
