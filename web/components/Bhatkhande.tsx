@@ -35,7 +35,9 @@ function usePerRow() {
   return per;
 }
 
-export function Bhatkhande({ notes, beats, head = null, theka = true, className = "" }: { notes: Note[]; beats: number; head?: number | null; theka?: boolean; className?: string }) {
+/** `words`, if given: what is sung in each beat (a syllable, or ऽ where a vowel is held), printed
+ *  under the notes as the books print a bandish's text. */
+export function Bhatkhande({ notes, beats, head = null, theka = true, words, className = "" }: { notes: Note[]; beats: number; head?: number | null; theka?: boolean; words?: string[]; className?: string }) {
   const per = usePerRow();
   const cells: Note[][] = Array.from({ length: beats }, () => []);
   for (const n of notes) cells[Math.floor(n.t + 1e-6)]?.push(n);
@@ -70,6 +72,15 @@ export function Bhatkhande({ notes, beats, head = null, theka = true, className 
                   );
                 })}
               </tr>
+              {words && (
+                <tr className="font-sans text-[14px] text-sindoor sm:text-[16px]">
+                  {Array.from({ length: per }, (_, k) => {
+                    const b = start + k;
+                    const w = words[b] ?? "";
+                    return <td key={k} className={`h-7 truncate px-0.5 ${div(k)} ${b === cur ? "font-semibold" : ""} ${w === "ऽ" ? "text-sindoor/45" : ""}`}>{w}</td>;
+                  })}
+                </tr>
+              )}
               {(per === 8 || ri === rows.length - 1) && (
                 <tr className="text-[13px] text-sindoor">
                   {Array.from({ length: per }, (_, k) => <td key={k} className={`pb-2 pt-1 ${div(k)}`}>{SIGNS[(start + k) % 16] ?? ""}</td>)}
