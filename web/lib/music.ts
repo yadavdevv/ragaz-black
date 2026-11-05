@@ -19,7 +19,8 @@ export type Raga = {
   nyas: string[];
   pakad: string;
   time: string;
-  hours: [number, number];
+  hours: [number, number] | null; // null for ragas tied to a season (Malhar, Basant)
+  season?: string | null;
   rasa: string;
   tanpura: string;
 };
@@ -86,7 +87,8 @@ export function hourDistance(hour: number, [a, b]: [number, number]) {
 }
 
 export function ragaOfHour(ragas: Raga[], hour: number) {
-  return [...ragas].sort((x, y) => hourDistance(hour, x.hours) - hourDistance(hour, y.hours))[0];
+  const timed = ragas.filter((r): r is Raga & { hours: [number, number] } => r.hours !== null);
+  return [...(timed.length ? timed : ragas)].sort((x, y) => hourDistance(hour, x.hours ?? [0, 24]) - hourDistance(hour, y.hours ?? [0, 24]))[0];
 }
 
 // ---------------------------------------------------------------- acoustics

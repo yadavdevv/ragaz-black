@@ -37,7 +37,7 @@ def raga_entry(r) -> dict:
     return {
         "key": r.key,
         "name": r.name,
-        "devanagari": DEVANAGARI.get(r.key, r.name),
+        "devanagari": r.devanagari or DEVANAGARI.get(r.key, r.name),
         "thaat": r.thaat,
         "notes": sorted(SWARAS.index(s) for s in r.notes),
         "swaras": [s for s in SWARAS if s in r.notes],
@@ -46,7 +46,9 @@ def raga_entry(r) -> dict:
         "nyas": sorted(r.nyas, key=SWARAS.index),
         "pakad": r.pakad,
         "time": r.time,
-        "hours": HOURS.get(r.key, [6, 9]),
+        # Seasonal ragas (Malhar, Basant) have no clock hours: the raga clock leaves them out.
+        "hours": list(r.hours) if r.hours else None if r.season else HOURS.get(r.key, [6, 9]),
+        "season": r.season,
         "rasa": r.rasa,
         "tanpura": r.tanpura,
     }
