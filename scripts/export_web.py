@@ -274,8 +274,10 @@ def voices(ragas: dict, seconds: float = 10.0, hop: float = 0.02) -> list[dict]:
     return out
 
 
+LATEST_LABEL = "v5e"  # shown on the site as "the newest model · <label>"
 LATEST_RUN = "v5e-long-grpo-20261024-1940"
 LATEST_STEP = 30  # best checkpoint by real-twin score (experiments.md)
+LATEST_STYLE = "v5"  # the reward the run was trained and scored with
 
 
 def latest(all_ragas: dict) -> dict:
@@ -296,7 +298,7 @@ def latest(all_ragas: dict) -> dict:
         for i, r in enumerate(group):
             comp = parse(r["notation"])
             pieces.append({
-                "id": f"v5e-{key}-{i:02d}", "model": "v5e", "run": LATEST_RUN, "step": r["step"], "raga": key,
+                "id": f"{LATEST_LABEL}-{key}-{i:02d}", "model": LATEST_LABEL, "run": LATEST_RUN, "step": r["step"], "raga": key,
                 "notation": r["notation"], "beats": comp.beats, "bars": len(comp.bars), "reward": round(r["reward"], 4),
                 "scores": {k: round(v, 4) for k, v in r["scores"].items()}, "violations": r["violations"],
                 "notes": [{"s": n.swara, "o": n.octave, "t": round(n.start, 4), "d": round(n.duration, 4), "bar": n.bar, "ok": n.swara in raga.notes} for n in comp.notes],
@@ -305,7 +307,7 @@ def latest(all_ragas: dict) -> dict:
     audio.mkdir(parents=True, exist_ok=True)
     recordings = []
     for key, raga in all_ragas.items():
-        txt = Path(f"out/v5e-{key}.txt")
+        txt = Path(f"out/{LATEST_LABEL}-{key}.txt")
         if not txt.exists():
             continue
         notation = txt.read_text().strip()
@@ -313,9 +315,9 @@ def latest(all_ragas: dict) -> dict:
         src = next((r for r in rows + best if r["notation"].strip().replace("\n", " ") == flat), None)
         files = {}
         for voice in ["vocal", "expressive"]:
-            wav = Path(f"out/v5e-{key}-{voice}.wav")
+            wav = Path(f"out/{LATEST_LABEL}-{key}-{voice}.wav")
             if wav.exists():
-                mp3 = audio / f"v5e-{key}-{voice}.mp3"  # MP3: plays in every browser
+                mp3 = audio / f"{LATEST_LABEL}-{key}-{voice}.mp3"  # MP3: plays in every browser
                 subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav), "-codec:a", "libmp3lame", "-b:a", "128k", str(mp3)], check=True)
                 files[voice] = f"/audio/{mp3.name}"
         comp = parse(notation)
@@ -325,8 +327,9 @@ def latest(all_ragas: dict) -> dict:
             "notes": [{"s": n.swara, "o": n.octave, "t": round(n.start, 4), "d": round(n.duration, 4), "bar": n.bar, "ok": n.swara in raga.notes} for n in comp.notes],
         })
     return {
-        "run": LATEST_RUN, "step": LATEST_STEP, "bars": 16, "tempo": 90,
-        "ragas": [raga_entry(r) for r in all_ragas.values()],
+        "label": LATEST_LABEL, "style": LATEST_STYLE, "run": LATEST_RUN, "step": LATEST_STEP, "bars": 16, "tempo": 90,
+        # Only the ragas this model wrote pieces for (ragas.yaml may list more than it knows).
+        "ragas": [raga_entry(r) for k, r in all_ragas.items() if any(p["raga"] == k for p in pieces)],
         "pieces": pieces, "recordings": recordings,
         "voices": {
             "vocal": "a DDSP voice trained on separately miked vocal tracks of 12 women singers from Saraga Carnatic concerts (CC BY-NC-SA 4.0), singing the notes with glides and wavers learned from recordings",

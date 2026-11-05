@@ -130,7 +130,7 @@ export default function Words() {
                 </div>
                 <Bhatkhande notes={setting.notes} beats={setting.beats} head={head} words={setting.words} className="mt-4" />
                 <p className="mt-4 text-[13px] leading-[1.6] text-kajal/55">
-                  The notes are {setting.id.replace(/^v5e-[a-z_]+-/, "piece no. ").replace(/no\. 0?(\d+)/, (_, n) => `no. ${Number(n) + 1}`)} by the newest model in {raga.name}, the best fit for these words of its {data?.latest.pieces.filter((p) => p.raga === rk).length} pieces. ऽ marks a vowel held across notes, as in Bhatkhande&rsquo;s books. The voice sings &ldquo;aa&rdquo; for now: it can&rsquo;t pronounce words yet, so the words light up in time instead.
+                  The notes are {setting.id.replace(/^[a-z0-9]+-[a-z_]+-/, "piece no. ").replace(/no\. 0?(\d+)/, (_, n) => `no. ${Number(n) + 1}`)} by the newest model in {raga.name}, the best fit for these words of its {data?.latest.pieces.filter((p) => p.raga === rk).length} pieces. ऽ marks a vowel held across notes, as in Bhatkhande&rsquo;s books. The voice sings &ldquo;aa&rdquo; for now: it can&rsquo;t pronounce words yet, so the words light up in time instead.
                 </p>
               </div>
             )}

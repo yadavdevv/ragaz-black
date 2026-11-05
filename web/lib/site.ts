@@ -13,7 +13,7 @@ export type Journey = Record<string, Record<string, [number, number][]> & { sa?:
 export type Voice = { raga: string; recording: string; title: string; start: number; hop: number; cents: (number | null)[]; source: string };
 export type Recording = { raga: string; notation: string; files: Record<string, string>; tempo: number; bars: number; run: string; step: number | null; reward: number | null; notes: Note[] };
 export type LatestPiece = Piece & { bars: number };
-export type Latest = { run: string; step: number; bars: number; tempo: number; ragas: Raga[]; pieces: LatestPiece[]; recordings: Recording[]; voices: Record<string, string> };
+export type Latest = { label: string; style: string; run: string; step: number; bars: number; tempo: number; ragas: Raga[]; pieces: LatestPiece[]; recordings: Recording[]; voices: Record<string, string> };
 /** `ragas` are the three with real-singer data; `allRagas` adds Deshkar (newest model only). */
 export type Data = { ragas: Raga[]; allRagas: Raga[]; pieces: Piece[]; masters: Masters; profiles: Profiles; exhibits: Exhibit[]; journey: Journey; voices: Voice[]; latest: Latest };
 
@@ -55,7 +55,7 @@ export const ragaOf = (key: string) => useSite.getState().data?.allRagas.find((r
 export function pieceTrack(p: Piece, label?: string): Track {
   const r = ragaOf(p.raga);
   const n = Number(p.id.split("-").pop()) + 1;
-  const sub = p.model === "v5e" ? `newest model · 16 bars · ${r?.time.split(" (")[0] ?? ""}` : `${r?.time.split(" (")[0] ?? ""} · composed from the word “${r?.name}”`;
+  const sub = p.model === useSite.getState().data?.latest.label ? `newest model · 16 bars · ${r?.time.split(" (")[0] ?? ""}` : `${r?.time.split(" (")[0] ?? ""} · composed from the word “${r?.name}”`;
   return { id: p.id, title: `${r?.name ?? p.raga} no. ${n}`, sub: label ?? sub, raga: p.raga, notes: p.notes, notation: p.notation, reward: p.reward };
 }
 
