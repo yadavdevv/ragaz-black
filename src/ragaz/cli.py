@@ -73,6 +73,14 @@ def main() -> None:
     p_distill.add_argument("--batch", type=int, default=8, help="sequences generated at once")
     p_distill.add_argument("--memory-gb", type=float, default=5)
 
+    p_bsft = sub.add_parser("bandish-sft", help="bandish composer (words + notes): supervised fine-tuning")
+    p_bsft.add_argument("--config", required=True)
+    p_bsft.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE")
+    p_btrain = sub.add_parser("bandish-train", help="bandish composer: GRPO against the bandish reward")
+    p_btrain.add_argument("--config")
+    p_btrain.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE")
+    p_btrain.add_argument("--resume")
+
     p_sft = sub.add_parser("sft", help="supervised fine-tuning on distilled compositions")
     p_sft.add_argument("--config", required=True)
     p_sft.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE")
@@ -83,6 +91,18 @@ def main() -> None:
         from ragaz.distill import distill
 
         distill(args.model, args.adapter, args.ragas, args.per_raga, Path(args.out), args.min_reward, args.max_per_raga, batch=args.batch, memory_gb=args.memory_gb, style=args.style, bars=args.bars, rhythm=args.rhythm, variant=args.variant)
+        return
+
+    if args.command == "bandish-sft":
+        from ragaz.bandish_train import bandish_sft
+
+        bandish_sft(args.config, args.set)
+        return
+
+    if args.command == "bandish-train":
+        from ragaz.bandish_train import bandish_train
+
+        bandish_train(args.config, args.set, args.resume)
         return
 
     if args.command == "sft":

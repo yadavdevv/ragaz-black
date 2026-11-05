@@ -1,0 +1,34 @@
+# Bandish composer, step 2: GRPO against the bandish reward (bandish.py): raga reward on the notes
+# × alignment × fidelity to the given words × how the words sit (heavy held, mukhda on sam).
+name: bandish-grpo
+model: mlx-community/Qwen3-0.6B-bf16
+tracker: trackio
+init_adapter: null        # set by scripts/run_bandish.sh to the bandish SFT's best checkpoint
+ragas: [bhupali, yaman, malkauns, deshkar, bhairav, todi, shuddh_sarang, madhuvanti, marwa, bihag, darbari, miyan_malhar, basant]
+reward_style: v6
+target_bars: 16
+
+steps: 40
+prompts_per_step: 4
+group_size: 8
+temperature: 1.0
+max_tokens: 420
+lr: 1.0e-5
+warmup_steps: 5
+beta: 0.04
+lora_rank: 16
+lora_layers: 16
+duplicate_penalty: 0.5
+
+eval_every: 10
+eval_samples: 3
+save_every: 10
+best_metric: eval/both/reward
+render_audio: false
+micro_batch: 1
+gen_batch: 12
+memory_gb: 6
+hard_memory_gb: 9
+min_free_gb: 2.5
+governor_full_gb: 4.0
+governor_pause_gb: 3.0
