@@ -11,7 +11,7 @@ import { Magnetic } from "@/components/Magnetic";
 import { FloralBand } from "@/components/Ornament";
 import { RiseChars } from "@/components/Text";
 import { getEngine } from "@/lib/audio";
-import { type Held, Mic, type Reader, read, strayNotes, tellingNotes, token, transcribe } from "@/lib/listen";
+import { type Frame, type Held, Mic, type Reader, read, strayNotes, tellingNotes, token, transcribe } from "@/lib/listen";
 import { type Note, type Raga, SWARAS } from "@/lib/music";
 import { tick, useData } from "@/lib/site";
 
@@ -56,6 +56,7 @@ export default function Sing() {
   const [live, setLive] = useState<{ raga: string; share: number }[]>([]);
   const [cousins, setCousins] = useState<Cousin[]>([]);
   const [turns, setTurns] = useState<Turn[]>([]);
+  const [trace, setTrace] = useState<Frame[]>([]);
   const mic = useRef<Mic | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const raf = useRef(0);
@@ -99,6 +100,7 @@ export default function Sing() {
     m.stop();
     cancelAnimationFrame(raf.current);
     const notes = transcribe(m.frames, sa);
+    setTrace(m.frames.slice());
     setHeld(notes);
     setPhase("reading");
     mic.current = null;
@@ -233,7 +235,7 @@ export default function Sing() {
   const share = async () => {
     if (!topRaga) return;
     tick();
-    const blob = await card(held, topRaga.name, topRaga.devanagari, topRaga.time);
+    const blob = await card(held, trace, sa, topRaga.name, topRaga.devanagari, topRaga.time);
     const file = new File([blob], `ragaz-${top.raga}.png`, { type: "image/png" });
     if (navigator.canShare?.({ files: [file] })) {
       await navigator.share({ files: [file], title: `I sang ${topRaga.name}`, text: "ragaz-black.vercel.app/sing" }).catch(() => {});
@@ -455,8 +457,9 @@ export default function Sing() {
   );
 }
 
-/** A shareable card: your line in Devanagari sargam and the raga it lives in, on paper. */
-async function card(held: Held[], name: string, deva: string, time: string): Promise<Blob> {
+/** A shareable card: your own voice line drawn in ink, your notes in Devanagari sargam, and the
+ *  raga it lives in, on paper. No two are alike. */
+async function card(held: Held[], trace: Frame[], sa: number, name: string, deva: string, time: string): Promise<Blob> {
   const DEVA: Record<string, string> = { S: "सा", r: "रे", R: "रे", g: "ग", G: "ग", m: "म", M: "म", P: "प", d: "ध", D: "ध", n: "नि", N: "नि" };
   await document.fonts.ready;
   const c = document.createElement("canvas");
@@ -470,14 +473,38 @@ async function card(held: Held[], name: string, deva: string, time: string): Pro
   x.font = "150px 'Tiro Devanagari Hindi', serif"; x.fillText(deva, 540, 420);
   x.font = "64px 'Tiro Devanagari Hindi', serif"; x.fillText(name, 540, 510);
   x.fillStyle = "rgba(19,26,43,.6)"; x.font = "28px Newsreader, serif"; x.fillText(time, 540, 565);
+  // Your voice, as one ink line: pitch against time, lifting where you breathed.
+  const voiced = trace.filter((f) => f.hz > 0);
+  if (voiced.length > 2) {
+    const semis = voiced.map((f) => 12 * Math.log2(f.hz / sa));
+    const lo = Math.min(...semis) - 1, hi = Math.max(...semis) + 1;
+    const t0 = trace[0].t, t1 = trace[trace.length - 1].t || 1;
+    const X = (t: number) => 140 + ((t - t0) / (t1 - t0)) * 800, Y = (s: number) => 900 - ((s - lo) / Math.max(6, hi - lo)) * 240;
+    x.strokeStyle = "rgba(19,26,43,.12)"; x.lineWidth = 1;
+    for (let s = Math.ceil(lo); s <= hi; s++) if ((((s % 12) + 12) % 12) === 0) { x.beginPath(); x.moveTo(120, Y(s)); x.lineTo(960, Y(s)); x.stroke(); }
+    for (const n of held) {
+      x.fillStyle = "rgba(178,58,34,.28)";
+      x.fillRect(X(n.start), Y(n.pc + 12 * n.octave) - 7, Math.max(4, X(n.start + n.duration) - X(n.start)), 14);
+    }
+    x.strokeStyle = "#131A2B"; x.lineWidth = 4; x.lineJoin = "round"; x.lineCap = "round";
+    x.beginPath();
+    let pen = false;
+    for (const f of trace) {
+      if (f.hz <= 0) { pen = false; continue; }
+      const s = 12 * Math.log2(f.hz / sa);
+      if (pen) x.lineTo(X(f.t), Y(s)); else x.moveTo(X(f.t), Y(s));
+      pen = true;
+    }
+    x.stroke();
+  }
   // The line, eight notes to a row.
-  x.fillStyle = "#131A2B"; x.font = "52px 'Tiro Devanagari Hindi', serif";
-  const notes = held.slice(0, 32);
+  x.fillStyle = "#131A2B"; x.font = "46px 'Tiro Devanagari Hindi', serif";
+  const notes = held.slice(0, 16);
   for (let r = 0; r < Math.ceil(notes.length / 8); r++) {
     const row = notes.slice(r * 8, r * 8 + 8);
     row.forEach((n, i) => {
       const s = SWARAS[n.pc];
-      const cx = 540 + (i - (row.length - 1) / 2) * 110, cy = 720 + r * 120;
+      const cx = 540 + (i - (row.length - 1) / 2) * 110, cy = 1010 + r * 95;
       x.fillText(DEVA[s], cx, cy);
       if ("rgdn".includes(s)) x.fillRect(cx - 24, cy + 12, 48, 3);
       if (s === "M") x.fillRect(cx - 1.5, cy - 70, 3, 18);
