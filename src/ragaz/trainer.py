@@ -197,11 +197,11 @@ class GRPOTrainer:
 
         # Group note profile (v3): credit pieces that pull their group's pooled profile toward real.
         if cfg.group_profile_weight > 0:
-            from ragaz.realprofile import group_profile_ranks
+            from ragaz.realprofile import group_profile_ranks, profiles_path
 
             for g in range(0, len(rows), cfg.group_size):
                 group = rows[g : g + cfg.group_size]
-                ranks = group_profile_ranks([RAGA_NOTES(extract(r["text"])) for r in group], group[0]["raga"])
+                ranks = group_profile_ranks([RAGA_NOTES(extract(r["text"])) for r in group], group[0]["raga"], profiles_path(cfg.reward_style))
                 for r, rank in zip(group, ranks):
                     r["profile_rank"] = rank
                     r["reward"] *= (1 - cfg.group_profile_weight) + cfg.group_profile_weight * rank
@@ -320,19 +320,25 @@ class GRPOTrainer:
             metrics[f"eval/{variant}/reward"] = statistics.mean(r["reward"] for r in group)
             metrics[f"eval/{variant}/good_rate"] = sum(r["reward"] > 0.8 for r in group) / len(group)
             metrics[f"eval/{variant}/no_wrong_notes"] = sum(r["scores"]["allowed"] == 1 for r in group) / len(group)
-            if cfg.reward_style in ("v2", "v3", "v4", "v5"):
-                from ragaz.realprofile import realism
+            if cfg.reward_style in ("v2", "v3", "v4", "v5", "v6"):
+                from ragaz.realprofile import profiles_path, realism
 
-                vals = [realism([RAGA_NOTES(r["notation"]) for r in group if r["raga"] == raga.key], raga.key) for raga in self.ragas]
+                vals = [realism([RAGA_NOTES(r["notation"]) for r in group if r["raga"] == raga.key], raga.key, profiles_path(cfg.reward_style)) for raga in self.ragas]
                 metrics[f"eval/{variant}/realism"] = statistics.mean(v for v in vals if v == v)  # skip ragas without recordings
                 metrics[f"eval/{variant}/real_score"] = metrics[f"eval/{variant}/reward"] * metrics[f"eval/{variant}/realism"]
+            # Independent check: does a reader trained only on real singers name each piece's raga?
+            from ragaz.reader import known, rank
+
+            judged = [r for r in rows if r["variant"] == variant and r["raga"] in known()]
+            if judged:
+                metrics[f"eval/{variant}/reader_accuracy"] = sum(rank(RAGA_NOTES(r["notation"]))[:1] == [r["raga"]] for r in judged) / len(judged)
             metrics[f"eval/{variant}/distinct"] = len({r["notation"] for r in group}) / len(group)
             if self.ref_bars is not None:
                 bars = [tuple(b) for r in group for b in parse(r["notation"]).bars]
                 metrics[f"eval/{variant}/novel_bars"] = sum(b not in self.ref_bars for b in bars) / max(1, len(bars))
             metrics[f"eval/{variant}/copied_example"] = statistics.mean(r["copied"] for r in group)
             metrics[f"eval/{variant}/parseable"] = sum(r["scores"]["format"] > 0 for r in group) / len(group)
-            for part in PARTS + (PARTS_V2 if self.cfg.reward_style in ("v2", "v3", "v4", "v5") else []) + (PARTS_V4 if self.cfg.reward_style in ("v4", "v5") else []) + (PARTS_V5 if self.cfg.reward_style == "v5" else []) + (PARTS_LONG if self.cfg.reward_style == "v5" and self.cfg.target_bars >= 16 else []):
+            for part in PARTS + (PARTS_V2 if self.cfg.reward_style in ("v2", "v3", "v4", "v5", "v6") else []) + (PARTS_V4 if self.cfg.reward_style in ("v4", "v5", "v6") else []) + (PARTS_V5 if self.cfg.reward_style in ("v5", "v6") else []) + (PARTS_LONG if self.cfg.reward_style in ("v5", "v6") and self.cfg.target_bars >= 16 else []):
                 vals = [r["scores"][part] for r in group if part in r["scores"]]  # e.g. no register for Deshkar
                 if vals:
                     metrics[f"eval/{variant}/{part}"] = statistics.mean(vals)
@@ -464,7 +470,7 @@ class GRPOTrainer:
                     "memory/batch_scale": scale,
                     "memory/paused_s_total": self.governor.paused_s,
                 }
-                for part in PARTS + (PARTS_V2 if cfg.reward_style in ("v2", "v3", "v4", "v5") else []) + (PARTS_V4 if cfg.reward_style in ("v4", "v5") else []) + (PARTS_V5 if cfg.reward_style == "v5" else []) + (PARTS_LONG if cfg.reward_style == "v5" and cfg.target_bars >= 16 else []):
+                for part in PARTS + (PARTS_V2 if cfg.reward_style in ("v2", "v3", "v4", "v5", "v6") else []) + (PARTS_V4 if cfg.reward_style in ("v4", "v5", "v6") else []) + (PARTS_V5 if cfg.reward_style in ("v5", "v6") else []) + (PARTS_LONG if cfg.reward_style in ("v5", "v6") and cfg.target_bars >= 16 else []):
                     vals = [r["scores"][part] for r in rows if part in r["scores"]]
                     if vals:
                         metrics[f"train/{part}"] = statistics.mean(vals)

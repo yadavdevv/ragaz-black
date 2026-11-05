@@ -289,6 +289,11 @@ def score_pakad(comp: Composition, raga: Raga, violations: list[str], stats: dic
 def verify(text: str, raga: str | Raga, style: str = "v1", target_bars: int = TARGET_BARS) -> Report:
     """``style="v1"``: hand-written style rules. ``"v2"``: style calibrated on real recordings."""
     raga = get_raga(raga) if isinstance(raga, str) else raga
+    from ragaz.realprofile import profiles_path
+
+    # v6 = the v5 reward, scored against real profiles of all twelve recorded ragas.
+    path = profiles_path(style)
+    style = "v5" if style == "v6" else style
     comp = parse(text)
     violations: list[str] = []
     stats: dict[str, object] = {}
@@ -320,14 +325,14 @@ def verify(text: str, raga: str | Raga, style: str = "v1", target_bars: int = TA
     weights = WEIGHTS
     note_gate = scores["allowed"] ** 2
     if style in ("v2", "v3", "v4", "v5"):
-        from ragaz.realprofile import rhythm_scores, style_scores
+        from ragaz.realprofile import load_profiles, rhythm_scores, style_scores
 
-        real = style_scores([(n.swara, n.octave, n.duration) for n in comp.notes], raga.key)
+        real = style_scores([(n.swara, n.octave, n.duration) for n in comp.notes], raga.key, path)
         if style in ("v4", "v5"):
             scores["rank"] = score_rank(comp, raga)
             scores["purity"] = note_gate = score_purity(comp, raga)
             if style == "v5":
-                scores |= rhythm_scores([(n.swara, n.octave, n.duration) for n in comp.notes])
+                scores |= rhythm_scores([(n.swara, n.octave, n.duration) for n in comp.notes], load_profiles(path))
             if real is None:  # no recordings for this raga: rulebook identity only
                 scores |= {"profile": 0.0, "motion": 0.0, "phrases": 0.0}
                 weights = WEIGHTS_V4_RULES_ONLY if style == "v4" else WEIGHTS_V5_RULES_ONLY

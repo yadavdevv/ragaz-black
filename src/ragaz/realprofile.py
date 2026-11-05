@@ -236,8 +236,13 @@ def calibrated(value: float, real: list[float], higher_is_better: bool) -> float
     return min(1.0, 2 * share_at_least_as_good)
 
 
-def style_scores(notes: list[tuple[str, int, float]], raga: str) -> dict[str, float] | None:
-    profiles = load_profiles()
+def profiles_path(style: str) -> str:
+    """Which real profiles a reward style is scored against: v6 adds nine ragas in its own file."""
+    return str(PROFILES_V6 if style == "v6" else PROFILES)
+
+
+def style_scores(notes: list[tuple[str, int, float]], raga: str, path: str = str(PROFILES)) -> dict[str, float] | None:
+    profiles = load_profiles(path)
     if not profiles or raga not in profiles["ragas"]:
         return None
     prof = profiles["ragas"][raga]
@@ -265,30 +270,30 @@ if __name__ == "__main__":
 # ------------------------------------------------- pooled profile (v3 reward)
 
 
-def real_pc(raga: str) -> np.ndarray | None:
-    profiles = load_profiles()
+def real_pc(raga: str, path: str = str(PROFILES)) -> np.ndarray | None:
+    profiles = load_profiles(path)
     return np.array(profiles["ragas"][raga]["pc"]) if profiles and raga in profiles["ragas"] else None
 
 
-def realism(pieces: list[list[tuple[str, int, float]]], raga: str) -> float:
+def realism(pieces: list[list[tuple[str, int, float]]], raga: str, path: str = str(PROFILES)) -> float:
     """1 − total-variation distance between the pooled note-time profile of many pieces
     and the real profile. Stable (unlike one 32-note piece), so it's the metric that
     picks checkpoints: v2's reward rose after step 20 while this fell."""
-    target = real_pc(raga)
+    target = real_pc(raga, path)
     if target is None:
         return float("nan")  # no recordings for this raga
     pooled = pc_distribution([n for p in pieces for n in p])
     return 1 - 0.5 * float(np.abs(pooled - target).sum())
 
 
-def group_profile_ranks(pieces: list[list[tuple[str, int, float]]], raga: str) -> list[float]:
+def group_profile_ranks(pieces: list[list[tuple[str, int, float]]], raga: str, path: str = str(PROFILES)) -> list[float]:
     """Credit each piece by how much it moves its group's pooled profile toward real.
 
     Leave-one-out: d_i = JSD(pool without i, real) − JSD(pool, real). Positive d_i means
     the piece helps. Returned as ranks in [0, 1] (ties averaged), which is scale-free; GRPO
     normalises within the group anyway. A group that all skips Pa rewards whoever uses it.
     """
-    target = real_pc(raga)
+    target = real_pc(raga, path)
     if target is None:
         return [1.0] * len(pieces)  # no recordings: neutral, the rulebook terms decide
     full = jsd(pc_distribution([n for p in pieces for n in p]), target)
