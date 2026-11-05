@@ -1,0 +1,39 @@
+# v6 step 1: teach nine new ragas from real singers' own phrases. The v5e composer, given a new
+# raga's notes in the prompt, still wrote Bhupali (purity 0 in 288/288 probe samples), so the
+# facts must come first. Data: scripts/real_phrases.py = runs of consecutive notes from each
+# raga's training recordings, laid into Teentaal (sthayi middle register, antara from passages
+# where the singer is high), plus v5e's own 16-bar set so the four known ragas stay.
+name: v6-sft
+model: mlx-community/Qwen3-0.6B-bf16
+tracker: trackio
+init_adapter: runs/grpo/v5e-long-grpo-20261024-1940/checkpoints/best
+ragas: [bhupali, yaman, malkauns, deshkar, bhairav, todi, shuddh_sarang, madhuvanti, marwa, bihag, darbari, miyan_malhar, basant]
+reward_style: v6
+rhythm_prompt: true
+target_bars: 16
+
+sft_data: data/real_long_v6.jsonl
+sft_epochs: 2
+sft_variants: [bare, hinted]
+prompts_per_step: 4
+group_size: 4            # batch 16
+
+lr: 5.0e-5
+warmup_steps: 10
+beta: 0.0
+lora_rank: 16
+lora_layers: 16
+max_tokens: 320
+
+eval_every: 65
+eval_samples: 6          # per raga per variant: 13 × 6 × 2 = 156 pieces per evaluation
+save_every: 65
+best_metric: eval/bare/real_twin_score
+# More headroom than v5 (memory freed for this run): bigger micro-batches, faster steps.
+micro_batch: 4
+gen_batch: 12
+memory_gb: 6
+hard_memory_gb: 9
+min_free_gb: 2.5
+governor_full_gb: 4.0
+governor_pause_gb: 3.0
