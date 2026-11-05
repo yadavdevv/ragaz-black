@@ -15,6 +15,7 @@ bhupali:
   nyas: "S G P D"             # notes phrases rest on
   pakad: "G R S .D S R G | P G D P G R S"
   time: early night (first prahar of night)
+  hours: [19, 22]
   rasa: devotional, serene
   tanpura: P
 
@@ -27,6 +28,7 @@ yaman:
   nyas: "R G P N"
   pakad: ".N R G R S | P M G R S"
   time: early evening (first prahar of night)
+  hours: [18, 21]
   rasa: romantic, devotional
   tanpura: P
 
@@ -39,6 +41,7 @@ malkauns:
   nyas: "S g m d"
   pakad: "m g m d m g S | .n S g m g S"
   time: late night (third prahar of night)
+  hours: [0, 3]
   rasa: meditative, heroic
   tanpura: m                  # no Pa in the raga, so the first string is tuned to Ma
 
@@ -54,5 +57,150 @@ deshkar:
   nyas: "S G P D"             # Pa is the characteristic resting note
   pakad: "P D G P | S' D P D G P G R S"
   time: morning (first prahar of day)
+  hours: [6, 9]
   rasa: heroic, bright
+  tanpura: P
+
+# ---------------------------------------------------------------------------- v6
+# A full day and the seasons. Every raga below has 10 recordings in the CompMusic
+# features set (CC BY 4.0), so its style is measured from real singers as well.
+# Sources (2026-11-05): tanarang.com, swarganga.org, indianclassicalmusic.com,
+# ragajunglism.org, darbar.org, Wikipedia. Where sources disagree, the majority
+# view is used and the disagreement is noted. NOT reviewed by a musician.
+# `hours` = local clock hours the raga is traditionally sung in [start, end).
+# Ragas tied to a season rather than an hour have `season` (and no `hours`).
+
+bhairav:
+  name: Bhairav
+  thaat: Bhairav
+  notes: "S r G m P d N"      # komal Re and Dha, both sung with a slow andolan
+  vadi: d
+  samvadi: r
+  nyas: "S r m P d"
+  pakad: "G m d - d P | G m r - r S"
+  time: dawn (first prahar of day)
+  hours: [6, 9]
+  rasa: devotional, solemn
+  tanpura: P
+
+todi:
+  # Miyan ki Todi. Pa is used sparingly (some sources skip it going up).
+  # Vadi komal Dha per Bhatkhande; some musicians give that place to komal Ga.
+  name: Todi
+  thaat: Todi
+  notes: "S r g M P d N"
+  vadi: d
+  samvadi: g
+  nyas: "S r g d"
+  pakad: "r g - r S | g M d - M g r g r S"
+  time: late morning (second prahar of day)
+  hours: [9, 12]
+  rasa: pathos, devotion
+  tanpura: P
+
+shuddh_sarang:
+  # No Ga at all; both Ma: tivra going up, shuddh in the descent to Re.
+  name: Shuddh Sarang
+  thaat: Kalyan
+  notes: "S R m M P D N"
+  vadi: R
+  samvadi: P
+  nyas: "S R P"
+  pakad: ".N S R M P | P D P M R | m R .N S"
+  time: midday
+  hours: [12, 15]
+  rasa: serene, warm
+  tanpura: P
+
+madhuvanti:
+  # Re and Dha are skipped going up (.N S g M P N S'). No published pakad was
+  # found; this one is built from the ascent and descent, so treat it as weak.
+  name: Madhuvanti
+  thaat: Todi
+  notes: "S R g M P D N"
+  vadi: P
+  samvadi: S
+  nyas: "S g P"
+  pakad: ".N S g M P | M g R S"
+  time: late afternoon
+  hours: [15, 18]
+  rasa: romantic, tender
+  tanpura: P
+
+marwa:
+  # No Pa; Sa is avoided inside phrases, which keep returning to komal Re.
+  # Pakad is Bhatkhande's. The tanpura's first string is tuned to Ni.
+  name: Marwa
+  thaat: Marwa
+  notes: "S r G M D N"
+  vadi: r
+  samvadi: D
+  nyas: "r G D"
+  pakad: "D M G r | G M G r | .N .D .N r S"
+  time: sunset (sandhi prakash)
+  hours: [17, 19]
+  rasa: restless, yearning
+  tanpura: N
+
+bihag:
+  # Re and Dha are skipped going up (.N S G m P N S'). Shuddh Ma is the main Ma;
+  # tivra Ma appears only in P M G m G.
+  name: Bihag
+  thaat: Bilawal
+  notes: "S R G m M P D N"
+  vadi: G
+  samvadi: N
+  nyas: "S G P N"
+  pakad: ".N S G m P | P M G m G R S"
+  time: night (second prahar of night)
+  hours: [21, 24]
+  rasa: romantic
+  tanpura: P
+
+darbari:
+  # Darbari Kanada. Komal Ga and Dha carry a slow, wide andolan; the raga lives
+  # in the lower and middle octaves. Pakad from indianclassicalmusic.com.
+  name: Darbari
+  thaat: Asavari
+  notes: "S R g m P d n"
+  vadi: R
+  samvadi: P
+  nyas: "S R P"
+  pakad: "g - m R S | .d - .n .P | .m .P .n - S R S"
+  time: midnight (third prahar of night)
+  hours: [23, 2]
+  rasa: grave, majestic
+  tanpura: P
+
+miyan_malhar:
+  # Both Ni, often one after the other (n D N S'). Vadi Ma (some take Pa).
+  # No sourced pakad was found specific to Miyan Malhar; these are its widely
+  # cited Malhar-ang phrases. Treat as weak.
+  name: Miyan Malhar
+  thaat: Kafi
+  notes: "S R g m P D n N"
+  vadi: m
+  samvadi: S
+  nyas: "S R m P"
+  pakad: "R m R P | g - m R S | n D N S'"
+  time: monsoon (traditionally night)
+  season: monsoon
+  rasa: longing, the rains
+  tanpura: P
+
+basant:
+  # Pa is weak going up (S G M d N S'); vakra descent. Some singers also touch
+  # shuddh Ma; the recordings will tell us how much. No sourced pakad found;
+  # this one is built from the descent. Treat as weak.
+  # Measured 2026-11-05: real singers spend 5% of their time on shuddh Ma, so it is allowed.
+  name: Basant
+  thaat: Purvi
+  notes: "S r G m M P d N"     # shuddh Ma: 5% of sung time in the 10 CompMusic recordings
+  vadi: S
+  samvadi: P
+  nyas: "S G P"
+  pakad: "M d r' S' | N d P M G | M G r S"
+  time: spring (traditionally late night)
+  season: spring
+  rasa: joyous, spring
   tanpura: P

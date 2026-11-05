@@ -22,6 +22,8 @@ class Raga:
     time: str
     rasa: str
     tanpura: str
+    hours: tuple[int, int] | None = None  # local clock hours [start, end); may wrap past midnight
+    season: str | None = None  # for ragas tied to a season rather than an hour
 
 
 @cache
@@ -48,6 +50,8 @@ def load_ragas() -> dict[str, Raga]:
             time=r["time"],
             rasa=r["rasa"],
             tanpura=r["tanpura"],
+            hours=tuple(r["hours"]) if "hours" in r else None,
+            season=r.get("season"),
         )
     return ragas
 
