@@ -5,6 +5,7 @@
 // the lyric verifier a lyrics model will be trained against.
 
 import { useEffect, useMemo, useState } from "react";
+import { type Bandish, BandishCard } from "@/components/BandishCard";
 import { Bhatkhande } from "@/components/Bhatkhande";
 import { Footer } from "@/components/Footer";
 import { Magnetic } from "@/components/Magnetic";
@@ -21,7 +22,7 @@ type Text = { key: string; title: string; who: string; lang: string; text: strin
 // All out of copyright: traditional, or the author died centuries ago.
 const SHELF: Text[] = [
   { key: "khusrau", title: "Zihaal-e-miskin", who: "Amir Khusrau, c. 1300", lang: "Persian and Braj, half a line each", text: "Zihaal-e-miskin makun taghaful\nduraye naina banaye batiyan" },
-  { key: "kabir", title: "Bura jo dekhan", who: "Kabir, 15th century", lang: "Hindi (Sadhukkadi)", text: "बुरा जो देखन मैं चला\nबुरा न मिलिया कोय" },
+  { key: "kabir", title: "Bura jo dekhan", who: "Kabir, 15th century", lang: "Hindi (Sadhukkadi)", text: "बुरा जो देखन मैं चला\nबुरा न मिलिया कोय\nजो दिल खोजा आपना\nमुझ सा बुरा न कोय" },
   { key: "basho", title: "Old pond", who: "Matsuo Bashō, 1686", lang: "Japanese", text: "ふるいけや\nかわずとびこむ\nみずのおと" },
   { key: "hwang", title: "Blue stream", who: "Hwang Jini, 16th century", lang: "Korean (sijo)", text: "청산리 벽계수야\n수이 감을 자랑 마라" },
   { key: "sappho", title: "The moon has set", who: "Sappho, c. 600 BCE", lang: "Ancient Greek", text: "Δέδυκε μὲν ἀ σελάννα\nκαὶ Πληΐαδες" },
@@ -41,6 +42,11 @@ export default function Words() {
   const [text, setText] = useState(SHELF[0].text);
   const [chosen, setChosen] = useState(SHELF[0].key);
   const [playing, setPlaying] = useState(false);
+  const [bandishes, setBandishes] = useState<Bandish[]>([]);
+
+  useEffect(() => {
+    fetch("/data/bandishes.json").then((r) => (r.ok ? r.json() : null)).then((d) => d && setBandishes(d.bandishes)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!rk && ragas.length) setRk(ragaOfHour(ragas, new Date().getHours()).key);
@@ -76,6 +82,9 @@ export default function Words() {
     setPlaying(true);
   };
 
+  // A bandish the model composed for exactly these words, in this raga (pre-generated).
+  const composed = bandishes.find((b) => b.task === "set" && b.raga === rk && b.words?.trim() === text.trim());
+  const ownWords = raga ? bandishes.filter((b) => b.raga === rk && b.task === "free") : [];
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   const heavy = syl.filter((s) => s.heavy).length;
 
@@ -120,10 +129,12 @@ export default function Words() {
               </div>
             </div>
 
+            {composed && raga && <BandishCard b={composed} raga={raga} tempo={data?.latest.tempo ?? 90} title="Composed for these words by the model" />}
+            {ownWords.length > 0 && raga && ownWords.map((b, i) => <BandishCard key={i} b={b} raga={raga} tempo={data?.latest.tempo ?? 90} title="A bandish it wrote, words and all" />)}
             {setting && raga && (
               <div className="leaf-card border border-rule p-6">
                 <div className="flex flex-wrap items-baseline justify-between gap-3">
-                  <div className="text-[12px] uppercase tracking-[0.24em] text-sepia">2 · Set in {raga.name}</div>
+                  <div className="text-[12px] uppercase tracking-[0.24em] text-sepia">{composed ? "For comparison: set on an existing piece" : `2 · Set in ${raga.name}`}</div>
                   <Magnetic variant="solid" cursor={playing ? "Stop" : "Listen"} onClick={play}>{playing ? "❚❚ Stop" : "▶ Sing it"}</Magnetic>
                 </div>
                 <div className="mt-5 flex min-h-[90px] items-center justify-center text-center">
