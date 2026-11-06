@@ -26,7 +26,10 @@ from ragaz.watchdog import MemoryWatchdog
 OUT = Path("data/bandish_distilled.jsonl")
 MIX = Path("data/bandish_v2.jsonl")
 N, PROMPTS = 8, 200
-KEEP = {"aligned": 0.97, "fidelity": 0.97, "mukhda": 1.0, "raga": 0.5}
+# First run kept 1 of 200 verses at aligned/fidelity >= 0.97: perfect alignment is rarer than best-of-8
+# suggested. Every sample's scores are saved (SAMPLES) so thresholds can be re-chosen without sampling.
+KEEP = {"aligned": 0.9, "fidelity": 0.95, "mukhda": 1.0, "raga": 0.45}
+SAMPLES = Path("data/bandish_samples.jsonl")
 
 
 def main(adapter: str, model_id: str = "mlx-community/Qwen3-0.6B-bf16", seed: int = 0) -> None:
@@ -37,7 +40,7 @@ def main(adapter: str, model_id: str = "mlx-community/Qwen3-0.6B-bf16", seed: in
     train = [r for r in rows() if not held_out(r["page"]) and r["task"] == "set"]
     rng = random.Random(seed)
     picks = rng.sample(train, min(PROMPTS, len(train)))
-    kept, tried = [], 0
+    kept, tried, log = [], 0, open(SAMPLES, "w")
     for i, r in enumerate(picks):
         prompt = chat(tok, bandish_prompt(get_raga(r["raga"]), r["words"]))
         texts = batch_generate(model, tok, [prompt] * N, max_tokens=420, sampler=sampler, completion_batch_size=N, prefill_batch_size=4).texts
@@ -46,6 +49,7 @@ def main(adapter: str, model_id: str = "mlx-community/Qwen3-0.6B-bf16", seed: in
         good = []
         for t in texts:
             s = score(t, r["raga"], r["words"])
+            log.write(json.dumps({"page": r["page"], "raga": r["raga"], "words": r["words"], "text": t, "scores": s}, ensure_ascii=False) + "\n")
             if all(s[k] >= v for k, v in KEEP.items()):
                 good.append((s["reward"], t.replace("```", "").strip()))
         if good:
@@ -54,6 +58,7 @@ def main(adapter: str, model_id: str = "mlx-community/Qwen3-0.6B-bf16", seed: in
         if (i + 1) % 20 == 0:
             print(f"{i + 1}/{len(picks)} verses: kept {len(kept)} ({len(kept) / (i + 1):.0%} of verses had a sample passing every check)", flush=True)
     watchdog.stop()
+    log.close()
     OUT.write_text("\n".join(json.dumps(k, ensure_ascii=False) for k in kept) + "\n")
     original = Path("data/bandish_v1.jsonl").read_text().strip().splitlines()
     MIX.write_text("\n".join(original + [json.dumps(k, ensure_ascii=False) for k in kept]) + "\n")
