@@ -45,8 +45,19 @@ Reply with only the bandish inside a code block."""
 def bandish_prompt(raga: Raga, words: str | None) -> str:
     mood = raga.rasa + (f", the {raga.season}" if raga.season else "")
     head = f"Compose a bandish in Raga {raga.name} (Hindustani classical music) in Teentaal, sung in the {raga.time}; its mood: {mood}."
-    task = f"Set these words (two lines of sthayi, then two of antara):\n{words}" if words else "Write its words too: Braj Bhasha, in Devanagari, of the raga's hour and mood."
+    task = f"Set these words (two lines of sthayi, then two of antara):\n{words}\n\nSing exactly these syllables, in order (* = long: hold it; write it without the *):\n{syllable_plan(words)}" if words else "Write its words too: Braj Bhasha, in Devanagari, of the raga's hour and mood."
     return "\n\n".join([head, task, FORMAT.format(example=EXAMPLE)])
+
+
+def syllable_plan(words: str) -> str:
+    """The given words already split into syllables, one line per verse line, long ones marked *: the
+    model only has to place them (the first bandish runs rewrote syllables, fidelity ~0.77)."""
+    from ragaz.lyrics import syllables
+
+    lines: dict[int, list[str]] = {}
+    for x in syllables(words):
+        lines.setdefault(x.line, []).append(x.text + ("*" if x.heavy else ""))
+    return "\n".join(" ".join(v) for _, v in sorted(lines.items()))
 
 
 def chat(tokenizer, text: str) -> list[int]:
