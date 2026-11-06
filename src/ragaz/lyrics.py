@@ -203,8 +203,10 @@ def set_words(syl: list[Syllable], onsets: list[float], beats: float) -> Fit | N
 
     best = [[NEG] * m for _ in range(k)]
     back = [[-1] * m for _ in range(k)]
+    # The text begins in the first cycle, as a bandish does (a pickup before sam is fine); each
+    # beat of waiting past beat 8 costs a little.
     for j in range(0, m - k + 1):
-        best[0][j] = W["rest"] * min(j, 8) * 0.25
+        best[0][j] = W["rest"] * max(0.0, onsets[j] - 8) * 0.25 if onsets[j] < 16 else NEG
     for i in range(1, k):
         for j in range(i, m - (k - i) + 1):
             b, arg = NEG, -1

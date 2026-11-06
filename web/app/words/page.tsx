@@ -55,6 +55,7 @@ export default function Words() {
   const head = usePlayhead(setting?.notes ?? null);
   const raga = ragas.find((r) => r.key === rk);
   const now = head !== null && setting ? setting.placements.filter((p) => setting.notes[p.note].t <= head + 1e-6).pop() : null;
+  if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") Object.assign(window, { __words: { head, starts: setting?.placements.slice(0, 6).map((p) => setting.notes[p.note].t), now } }); // read by the headless browser test
 
   const play = async () => {
     if (!setting || !raga) return;

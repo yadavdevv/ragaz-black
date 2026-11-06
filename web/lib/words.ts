@@ -253,7 +253,9 @@ export function setWords(syl: Syllable[], notes: Note[], beats: number): Setting
   const NEG = -1e9;
   const best = Array.from({ length: k }, () => new Float64Array(m).fill(NEG));
   const from = Array.from({ length: k }, () => new Int32Array(m).fill(-1));
-  for (let j = 0; j <= m - k; j++) best[0][j] = W.rest * Math.min(j, 8) * 0.25; // a late start costs a little
+  // The text begins in the first cycle, as a bandish does (a pickup before sam is fine); each beat
+  // of waiting past beat 8 costs a little.
+  for (let j = 0; j <= m - k; j++) best[0][j] = notes[j].t < 16 ? W.rest * Math.max(0, notes[j].t - 8) * 0.25 : NEG;
   for (let i = 1; i < k; i++) {
     for (let j = i; j <= m - (k - i); j++) {
       let b = NEG, arg = -1;
