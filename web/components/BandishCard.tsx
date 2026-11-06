@@ -3,11 +3,12 @@
 // A bandish the model composed, words and notes together: the Bhatkhande sheet with the words
 // printed under their beats, playable, with how it was chosen and how it scored.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getEngine } from "@/lib/audio";
 import type { Note, Raga } from "@/lib/music";
 import type { Lyric } from "@/lib/phones";
 import { tick } from "@/lib/site";
+import { arrange, pieceFor, produce, themeFor } from "@/lib/studio";
 import { usePlayhead } from "@/lib/usePlayhead";
 import { Bhatkhande } from "./Bhatkhande";
 
@@ -36,10 +37,17 @@ export function lyricsOf(bol: string[]): Lyric[] {
   return out;
 }
 
-export function BandishCard({ b, raga, tempo, title }: { b: Bandish; raga: Raga; tempo: number; title: string }) {
+/** Plays produced by default (the studio, in the raga's theme); "voice" plays the bare voice. */
+export function BandishCard({ b, raga, tempo, title, pool = [] }: { b: Bandish; raga: Raga; tempo: number; title: string; pool?: Note[][] }) {
   const [playing, setPlaying] = useState(false);
-  const [words, setWordsOn] = useState(true);
-  const head = usePlayhead(b.notes);
+  const [produced, setProduced] = useState(true);
+  const [studioHead, setStudioHead] = useState<number | null>(null);
+  const handle = useRef<ReturnType<typeof produce> | null>(null);
+  const raf = useRef(0);
+  const voiceHead = usePlayhead(b.notes);
+  const head = produced ? studioHead : voiceHead;
+  const theme = themeFor(raga.key);
+  useEffect(() => () => { handle.current?.stop(); cancelAnimationFrame(raf.current); }, []);
   const bol = b.bol.map((t) => (t === "-" ? "" : t));
   const play = async () => {
     tick();
@@ -48,14 +56,33 @@ export function BandishCard({ b, raga, tempo, title }: { b: Bandish; raga: Raga;
     if (playing) {
       eng.stopPiece();
       eng.stopDrone(1);
+      handle.current?.stop();
+      handle.current = null;
+      cancelAnimationFrame(raf.current);
+      setStudioHead(null);
       setPlaying(false);
+      return;
+    }
+    if (produced) {
+      const piece = pieceFor(b, raga, pool, b.raga.length);
+      const arr = arrange(piece);
+      const h = produce(eng.ctx, eng.ctx.destination, piece, theme);
+      handle.current = h;
+      setPlaying(true);
+      const loop = () => {
+        const t = eng.ctx.currentTime;
+        if (t > h.end) { setPlaying(false); setStudioHead(null); return; }
+        setStudioHead(arr.toSheet((t - h.t0) / h.beat));
+        raf.current = requestAnimationFrame(loop);
+      };
+      loop();
       return;
     }
     eng.retune(raga);
     if (!eng.droneOn) { eng.tune(raga); eng.startDrone(1); }
     eng.timbre = "voice";
     eng.onEnd = () => { setPlaying(false); eng.stopDrone(2); };
-    eng.play(b.notes, tempo, `bandish-${b.raga}-${b.task}`, words ? lyricsOf(b.bol) : undefined);
+    eng.play(b.notes, tempo, `bandish-${b.raga}-${b.task}`, lyricsOf(b.bol));
     setPlaying(true);
   };
   const pct = (x: number | undefined) => `${Math.round((x ?? 0) * 100)}%`;
@@ -68,7 +95,7 @@ export function BandishCard({ b, raga, tempo, title }: { b: Bandish; raga: Raga;
         </div>
         <div className="flex items-center gap-3">
           <div className="flex rounded-full border border-rule p-1 text-[13px]">
-            {([true, false] as const).map((w) => <button key={String(w)} onClick={() => { tick("soft"); setWordsOn(w); }} className={`rounded-full px-3 py-1 ${words === w ? "bg-kajal text-paper" : "text-kajal"}`}>{w ? "words" : "aa"}</button>)}
+            {([true, false] as const).map((w) => <button key={String(w)} disabled={playing} onClick={() => { tick("soft"); setProduced(w); }} className={`rounded-full px-3 py-1 ${produced === w ? "bg-kajal text-paper" : "text-kajal"}`}>{w ? `produced · ${theme.name}` : "voice"}</button>)}
           </div>
           <button onClick={play} data-cursor={playing ? "Stop" : "Listen"} className="rounded-full bg-sindoor px-5 py-2 text-[14px] text-paper transition-transform hover:scale-105">{playing ? "❚❚ Stop" : "▶ Sing it"}</button>
         </div>
@@ -76,7 +103,7 @@ export function BandishCard({ b, raga, tempo, title }: { b: Bandish; raga: Raga;
       <Bhatkhande notes={b.notes} beats={b.beats} head={head} words={bol} theka={false} className="mt-5" />
       <p className="mt-4 text-[13px] leading-[1.6] text-kajal/55">
         {b.task === "free" ? "Words and notes both written by the model." : `The model composed the melody for these words${b.source ? ` (${b.source.split(":")[0]})` : ""}.`}{" "}
-        Chosen as the {b.selection}: raga {pct(b.scores.raga)}, syllables on notes {pct(b.scores.aligned)}{b.task === "set" ? `, words kept ${pct(b.scores.fidelity)}` : `, real words ${pct(b.scores.known)}`}, mukhda on sam {b.scores.mukhda ? "✓" : "✕"}. The voice sings the words roughly: each syllable's vowel and the shape of its consonant, from a simple formant voice. Switch to &ldquo;aa&rdquo; to hear the melody alone.
+        Chosen as the {b.selection}: raga {pct(b.scores.raga)}, syllables on notes {pct(b.scores.aligned)}{b.task === "set" ? `, words kept ${pct(b.scores.fidelity)}` : `, real words ${pct(b.scores.known)}`}, mukhda on sam {b.scores.mukhda ? "✓" : "✕"}. Produced in {raga.name}&rsquo;s theme, {theme.name} (the full studio is at /studio); the voice sings the words roughly, from a simple formant voice.
       </p>
     </div>
   );

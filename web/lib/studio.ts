@@ -76,8 +76,24 @@ export function taan(raga: Raga): Note[] {
   return notes;
 }
 
-/** The track's timeline as one run of notes and words, with its sections. */
+/** A bandish ready for the studio: its notes and words, plus a low interlude and a coda picked
+ *  from the composer's own pieces in the raga (`pool`). */
+export function pieceFor(b: { notes: Note[]; beats: number; bol: string[] }, raga: Raga, pool: Note[][], seed = 0, saHz = 220): Piece {
+  const lyrics: Lyric[] = [];
+  b.bol.forEach((tok, i) => {
+    if (tok === "-" || tok === "ऽ") return;
+    const parts = tok.split("·").filter(Boolean);
+    parts.forEach((syl, k) => lyrics.push({ t: i + k / parts.length, syl }));
+  });
+  return { notes: b.notes, lyrics, beats: b.beats, raga, saHz, interlude: pickPhrase(pool, 8, { low: true, seed }), coda: pickPhrase(pool, 8, { low: true, endOnSa: true, seed: seed + 1 }) };
+}
+
+/** The track's timeline as one run of notes and words, with its sections. A short phrase (under two
+ *  cycles, e.g. Sing to it's answer) plays as it is, over the bed. */
 export function arrange(p: Piece) {
+  if (p.beats < 32) {
+    return { notes: p.notes, lyrics: p.lyrics, flute: [] as Note[], beats: p.beats, antara: p.beats, sections: [["answer", 0, p.beats]] as [string, number, number][], toSheet: (b: number) => (b < p.beats ? b : null) };
+  }
   const half = p.beats / 2, I = p.interlude?.length ? 8 : 0, C = p.coda?.length ? 8 : 0;
   const shift = <T extends { t: number }>(xs: T[], by: number) => xs.map((x) => ({ ...x, t: x.t + by }));
   // The taan bar, then the mukhda returns: the second half of the first cycle, the pickup whose last

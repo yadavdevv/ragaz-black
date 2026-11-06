@@ -85,6 +85,7 @@ export default function Words() {
   // A bandish the model composed for exactly these words, in this raga (pre-generated).
   const composed = bandishes.find((b) => b.task === "set" && b.raga === rk && b.words?.trim() === text.trim());
   // In this raga, the model's setting of a verse it never saw in training (Surdas, Bihari...).
+  const pool = useMemo(() => (data && rk ? data.latest.pieces.filter((p) => p.raga === rk).map((p) => p.notes) : []), [data, rk]);
   const unseen = bandishes.filter((b) => b.raga === rk && b.task === "set" && b.source && b.source !== "kabir");
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   const heavy = syl.filter((s) => s.heavy).length;
@@ -130,8 +131,8 @@ export default function Words() {
               </div>
             </div>
 
-            {composed && raga && <BandishCard b={composed} raga={raga} tempo={data?.latest.tempo ?? 90} title="Composed for these words by the model" />}
-            {!composed && raga && unseen.map((b, i) => <BandishCard key={i} b={b} raga={raga} tempo={data?.latest.tempo ?? 90} title={`A ${b.source!.startsWith("bhramargeet") ? "Surdas" : b.source!.startsWith("bihari") ? "Bihari" : b.source!.startsWith("rahim") ? "Rahim" : "Kabir"} verse it never saw, set by the model`} />)}
+            {composed && raga && <BandishCard b={composed} raga={raga} tempo={data?.latest.tempo ?? 90} pool={pool} title="Composed for these words by the model" />}
+            {!composed && raga && unseen.map((b, i) => <BandishCard key={i} b={b} raga={raga} tempo={data?.latest.tempo ?? 90} pool={pool} title={`A ${b.source!.startsWith("bhramargeet") ? "Surdas" : b.source!.startsWith("bihari") ? "Bihari" : b.source!.startsWith("rahim") ? "Rahim" : "Kabir"} verse it never saw, set by the model`} />)}
             {setting && raga && (
               <div className="leaf-card border border-rule p-6">
                 <div className="flex flex-wrap items-baseline justify-between gap-3">
