@@ -18,7 +18,7 @@ function seeded(seed: number) {
 }
 
 /** One tanpura string: harmonics that bloom one after another (the jawari buzz). */
-function tanpuraPluck(ctx: BaseAudioContext, hz: number, seconds = 5, seed = 0) {
+export function tanpuraPluck(ctx: BaseAudioContext, hz: number, seconds = 5, seed = 0) {
   const sr = ctx.sampleRate;
   const n = Math.floor(seconds * sr);
   const buf = ctx.createBuffer(1, n, sr);
@@ -115,7 +115,7 @@ class Flute {
 
 /** A sung "aa" (aakar): a buzzy source through vowel formants, sliding between notes
  *  the way a Hindustani vocalist does (a scoop into each note, slow meend between them). */
-class Voice {
+export class Voice {
   osc: OscillatorNode;
   lfo: OscillatorNode;
   wobble: OscillatorNode;
@@ -128,7 +128,7 @@ class Voice {
   artic: GainNode; // consonant dips, after the note envelope so the two don't fight
   cons: BiquadFilterNode; // consonant noise: bursts, aspiration, hiss
   consGain: GainNode;
-  constructor(ctx: AudioContext, out: AudioNode, noiseBuf: AudioBuffer, wave: PeriodicWave) {
+  constructor(ctx: BaseAudioContext, out: AudioNode, noiseBuf: AudioBuffer, wave: PeriodicWave) {
     this.osc = ctx.createOscillator();
     this.osc.setPeriodicWave(wave);
     this.amp = ctx.createGain();
@@ -137,8 +137,9 @@ class Voice {
     const sum = ctx.createGain();
     const top = ctx.createBiquadFilter();
     top.type = "lowpass";
-    top.frequency.value = 5200;
-    for (const [f, q, g] of [[760, 6, 1], [1180, 8, 0.6], [2620, 11, 0.32], [3450, 14, 0.12]]) {
+    top.frequency.value = 4200; // smoother: less buzz on top (was 5200)
+    // Formants a little wider than before (Q 6/8/11/14 rang and sounded sharp).
+    for (const [f, q, g] of [[760, 5, 1], [1180, 6, 0.6], [2620, 8, 0.28], [3450, 10, 0.08]]) {
       const bp = ctx.createBiquadFilter();
       bp.type = "bandpass";
       bp.frequency.value = f;
@@ -155,7 +156,13 @@ class Voice {
     body.gain.value = 0.12;
     this.osc.connect(body).connect(sum);
     this.artic = ctx.createGain();
-    sum.connect(top).connect(this.amp).connect(this.artic).connect(out);
+    // A gentle cut where harshness lives (~3 kHz).
+    const soft = ctx.createBiquadFilter();
+    soft.type = "peaking";
+    soft.frequency.value = 3000;
+    soft.Q.value = 1;
+    soft.gain.value = -4;
+    sum.connect(top).connect(soft).connect(this.amp).connect(this.artic).connect(out);
     // vibrato that blooms on held notes, plus a slow natural wobble
     this.lfo = ctx.createOscillator();
     this.lfo.frequency.value = 5.4;
@@ -196,7 +203,7 @@ class Voice {
     const burst = (hz: number, q: number, peak: number, len: number, before = 0) => {
       this.cons.frequency.setValueAtTime(hz, at - before);
       this.cons.Q.setValueAtTime(q, at - before);
-      this.consGain.gain.setTargetAtTime(peak * level, at - before, 0.005);
+      this.consGain.gain.setTargetAtTime(0.6 * peak * level, at - before, 0.008); // softer consonants
       this.consGain.gain.setTargetAtTime(0, at - before + len, len / 3);
     };
     switch (p.onset) {
@@ -246,6 +253,12 @@ class Voice {
     }
     for (const s of [this.osc, this.lfo, this.wobble, this.noise]) s.stop(at + tau * 10);
   }
+}
+
+/** The voice's source: harmonics falling as 1/k^1.35 (darker and smoother than the old 1/k^1.1). */
+export function voiceWave(ctx: BaseAudioContext) {
+  const vk = Array.from({ length: 40 }, (_, k) => (k === 0 ? 0 : 1 / k ** 1.35));
+  return ctx.createPeriodicWave(new Float32Array(40), new Float32Array(vk));
 }
 
 export type Timbre = "voice" | "flute";
@@ -307,8 +320,7 @@ export class Engine {
     for (let i = 0; i < nd.length; i++) nd[i] = r() * 2 - 1;
     this.wave = ctx.createPeriodicWave(new Float32Array(HARMONICS.length + 1), new Float32Array([0, ...HARMONICS]));
     // A glottal-like source: many harmonics, falling ~1/k^1.1.
-    const vk = Array.from({ length: 40 }, (_, k) => (k === 0 ? 0 : 1 / k ** 1.1));
-    this.voiceWave = ctx.createPeriodicWave(new Float32Array(40), new Float32Array(vk));
+    this.voiceWave = voiceWave(ctx);
   }
 
   get now() {
