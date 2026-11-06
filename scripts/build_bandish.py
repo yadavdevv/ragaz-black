@@ -3,8 +3,8 @@
     uv run python scripts/build_bandish.py      # → data/bandish_v1.jsonl
 
 Words: the cleaned public-domain verse (data/lyrics/corpus.jsonl), cut into four bandish lines
-(sthayi 2, antara 2); a line longer than 15 syllables is split at its caesura (comma) or its
-middle word. Notes: real-singer melodies of each raga (data/real_long_v6.jsonl, the composer's
+(sthayi 2, antara 2); a line longer than 15 syllables is split at its caesura (comma) if both
+halves have 5+ syllables, else at its middle word; fragments under 5 syllables are not lines. Notes: real-singer melodies of each raga (data/real_long_v6.jsonl, the composer's
 v6 teaching set). Each verse is set on up to 12 melodies of a raga with the same setter /words
 uses, sthayi words on bars 1–8 and antara words on bars 9–16; the best is kept only if heavy
 syllables are held, nothing is crowded and the mukhda lands on sam, and the result is checked
@@ -31,6 +31,7 @@ MELODIES = Path("data/real_long_v6.jsonl")
 OUT = Path("data/bandish_v1.jsonl")
 TRIES = 12
 MAX_LINE = 15
+MIN_LINE = 5
 
 # Surdas labels each pad with a raga. Mapped to our raga where it is the same raga or its family
 # (Sarang → Shuddh Sarang, Kanhara → Darbari Kanada, Malar → Miyan Malhar); others stay unmapped.
@@ -48,12 +49,25 @@ def segments(lines: list[str]) -> list[str]:
         if len(syllables(line)) <= MAX_LINE:
             out.append(line)
             continue
+        # Split at the caesura (a comma) only if both halves are real lines (5+ syllables);
+        # otherwise at the word nearest the middle by syllables.
+        halves = None
         if "," in line:
-            out += [p.strip() for p in line.split(",") if p.strip()]
-            continue
-        words = line.split()
-        out += [" ".join(words[: len(words) // 2]), " ".join(words[len(words) // 2 :])]
-    return [s for s in out if syllables(s)]
+            a, b = line.split(",", 1)
+            if min(len(syllables(a)), len(syllables(b))) >= MIN_LINE:
+                halves = [a.strip(), b.strip()]
+        if halves is None:
+            words = line.split()
+            counts = [len(syllables(w)) for w in words]
+            total, run, cut = sum(counts), 0, 1
+            for i, c in enumerate(counts[:-1]):
+                run += c
+                if run >= total / 2:
+                    cut = i + 1
+                    break
+            halves = [" ".join(words[:cut]), " ".join(words[cut:])]
+        out += [h.strip(" ,") for h in halves]
+    return [s for s in out if len(syllables(s)) >= MIN_LINE]
 
 
 def melody_onsets(notation: str) -> tuple[list[float], list[float], float]:

@@ -9,7 +9,9 @@ removed, each counted in cleaning.json so the cleaning can be audited:
   footnote     ↑ footnotes, and [१]-style markers inside verse
   commentary   सन्दर्भ / भावार्थ / शब्दार्थ / अर्थ / टिप्पणी / विशेष paragraphs (the edition's prose, not verse)
   prose        lines longer than a verse line (> 90 characters)
-  ocr          scan damage: doubled or stacked vowel signs, halant before a vowel sign, Latin
+  ocr          scan damage: doubled or stacked vowel signs, halant before a vowel sign, malformed
+               words (vowel sign after a vowel, stray nukta), stray punctuation or Bengali letters,
+               a ? on a one-letter fragment, Latin
                letters or digits inside a verse line
   duplicate    the same unit twice
 
@@ -34,6 +36,29 @@ SKIP_PAGES = re.compile(r"भूमिका|चूर्णिका|वक्�
 PROSE_END = re.compile(r"(है|हैं|था|थी|थे|गया|गए|गई|रहा|रहे|रही|होता|होती|जाता|सकता)\s*।\s*$")
 INLINE_DIGIT = re.compile(r"[०-९]")
 GLOSS = re.compile(r"(॥|।।)\s*[०-९\d]+\s*(॥|।।)")
+# Characters verse lines never need: editorial punctuation, quotes, other scripts.
+STRAY = re.compile(r"[;:*%|.\"'‘’“”]|[ঀ-৿]")
+# A ? is a real question mark only after a word of two or more letters (Surdas: मानो?).
+BROKEN_QUESTION = re.compile(r"(^|[\s\-])[ऀ-ॿ][ा-्ँ-ः]?\?")
+
+
+def well_formed(word: str) -> bool:
+    """Devanagari spelling that scans can break: a word can't start with a vowel sign, virama or
+    nasal mark; a vowel sign can't follow an independent vowel or a nasal mark; nukta only on
+    क ख ग ज ड ढ फ य."""
+    cs = [ord(c) for c in word]
+    sign = lambda c: 0x093E <= c <= 0x094D  # noqa: E731
+    nasal = lambda c: 0x0901 <= c <= 0x0903  # noqa: E731
+    if not cs or sign(cs[0]) or nasal(cs[0]):
+        return False
+    for a, b in zip(cs, cs[1:]):
+        if sign(b) and b != 0x094D and (0x0904 <= a <= 0x0914 or nasal(a)):
+            return False
+        if b == 0x093C and chr(a) not in "कखगजडढफय":
+            return False
+    return True
+
+
 # The commentary's own marks and connectives: a unit with any of them still holds a gloss.
 GLOSS_MARKS = re.compile(r"[=\[\]()/]|अर्थात्|इसलिए|के लिए|किया है|कहा है|टीका")
 RAGA = re.compile(r"^राग\s+([ऀ-ॿ ]+)$")
@@ -135,8 +160,15 @@ def main() -> None:
             for raga, lines in units:
                 if not lines:
                     continue
-                if GLOSS_MARKS.search("\n".join(lines)):
+                joined = "\n".join(lines)
+                if GLOSS_MARKS.search(joined):
                     drops["commentary left in a unit"] += 1
+                    continue
+                if STRAY.search(joined) or BROKEN_QUESTION.search(joined):
+                    drops["ocr: stray punctuation or script"] += 1
+                    continue
+                if not all(well_formed(w) for w in WORD.findall(joined)):
+                    drops["ocr: malformed word"] += 1
                     continue
                 key = re.sub(r"\s+", "", "".join(lines))
                 if key in seen:
