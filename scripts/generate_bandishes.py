@@ -61,7 +61,10 @@ def main(adapter: str, model_id: str = "mlx-community/Qwen3-0.6B-bf16") -> None:
         })
         print(f"[{i + 1}/{len(jobs)}] {job['raga']:<13} {job['task']:<4} {job['source'] or '':<12.12} reward {s['reward']:.2f} (raga {s['raga']:.2f}, aligned {s['aligned']:.2f}, fidelity {s['fidelity']:.2f}, mukhda {s['mukhda']:.0f})", flush=True)
     watchdog.stop()
-    OUT.write_text(json.dumps({"adapter": adapter, "n": N, "bandishes": out}, ensure_ascii=False))
+    # Only settings of real verse go to the site: the model's own words (free task) are not yet meaningful
+    # ("कही मीजो नोस यो…": Braj-sounding fragments, no sense), whatever the word check says.
+    shipped = [b for b in out if b["task"] == "set"]
+    OUT.write_text(json.dumps({"adapter": adapter, "n": N, "bandishes": shipped, "note": "Only settings of real verse are exported: the model's own words (the free task) are not yet meaningful."}, ensure_ascii=False))
     print(f"wrote {OUT}: {len(out)} bandishes")
 
 
