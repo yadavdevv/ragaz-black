@@ -14,6 +14,7 @@ import { getEngine } from "@/lib/audio";
 import { type Frame, type Held, Mic, type Reader, read, strayNotes, tellingNotes, token, transcribe } from "@/lib/listen";
 import { type Note, type Raga, SWARAS } from "@/lib/music";
 import { tick, useData } from "@/lib/site";
+import { produce, themeFor } from "@/lib/studio";
 
 const NAMES: Record<string, string> = { S: "Sa", r: "komal Re", R: "Re", g: "komal Ga", G: "Ga", m: "Ma", M: "tivra Ma", P: "Pa", d: "komal Dha", D: "Dha", n: "komal Ni", N: "Ni" };
 const WEST = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
@@ -226,11 +227,23 @@ export default function Sing() {
     setPlaying(which);
   };
 
-  const answerIt = () => {
+  /** The answer, produced: over a short bed in the raga's theme, in your key (your Sa). */
+  const answerIt = async () => {
     const a = answer ?? pickAnswer();
-    if (!a) return;
+    if (!a || !top) return;
     setAnswer(a);
-    playNotes(a, data?.latest.tempo ?? 90, "answer");
+    const full = data?.latest.ragas.find((r) => r.key === top.raga);
+    if (!full) return playNotes(a, data?.latest.tempo ?? 90, "answer");
+    tick();
+    const eng = getEngine();
+    await eng.resume();
+    eng.stopPiece();
+    eng.stopDrone(0.3);
+    setDroneOn(false);
+    const beats = Math.ceil(Math.max(...a.map((n) => n.t + n.d)) / 4) * 4;
+    const h = produce(eng.ctx, eng.ctx.destination, { notes: a, beats, raga: full, saHz: sa }, themeFor(top.raga));
+    setPlaying("answer");
+    window.setTimeout(() => setPlaying(null), (h.end - eng.ctx.currentTime) * 1000);
   };
 
   const share = async () => {
@@ -386,7 +399,7 @@ export default function Sing() {
                     <div className="mt-6">
                       <div className="text-[12px] uppercase tracking-[0.24em] text-kajal/50">Its answer</div>
                       <Bhatkhande notes={answer} beats={8} theka={false} className="mt-2 text-[20px]" />
-                      <div className="mt-2 text-[13px] text-kajal/50">Two bars from the newest model&rsquo;s {topRaga.name}, starting near the note you ended on.</div>
+                      <div className="mt-2 text-[13px] text-kajal/50">Two bars from the newest model&rsquo;s {topRaga.name}, starting near the note you ended on, produced in its theme ({themeFor(top.raga).name}) in your key.</div>
                     </div>
                   )}
                 </>
