@@ -145,6 +145,7 @@ export class Mic {
   level = 0;
   private stream: MediaStream | null = null;
   private analyser: AnalyserNode | null = null;
+  private sink: GainNode | null = null;
   private raf = 0;
   private buf = new Float32Array(2048);
   private half = new Float32Array(1024);
@@ -158,7 +159,11 @@ export class Mic {
     const src = this.ctx.createMediaStreamSource(this.stream);
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 2048;
-    src.connect(this.analyser); // not connected to the speakers
+    // Chrome only processes nodes the output pulls on: route the analyser into a muted gain on the
+    // destination, or it reads silence. Nothing is played (gain 0).
+    this.sink = this.ctx.createGain();
+    this.sink.gain.value = 0;
+    src.connect(this.analyser).connect(this.sink).connect(this.ctx.destination);
     this.frames = [];
     this.t0 = this.ctx.currentTime;
     const loop = () => {
@@ -177,6 +182,7 @@ export class Mic {
 
   stop() {
     cancelAnimationFrame(this.raf);
+    this.sink?.disconnect();
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
   }

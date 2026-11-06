@@ -171,6 +171,7 @@ export default function Sing() {
       const m = new Mic(eng.ctx);
       await m.start();
       mic.current = m;
+      if (process.env.NODE_ENV !== "production") Object.assign(window, { __mic: m, __ctx: eng.ctx }); // read by the headless browser test
       setElapsed(0);
       setPhase("listening");
       const c = canvas.current;
@@ -303,12 +304,15 @@ export default function Sing() {
                     <div className="text-[13px] text-kajal/60">{live.map((l) => `${reader.ragas[l.raga].name} ${Math.round(l.share * 100)}%`).join(" · ")}</div>
                   </div>
                 )}
-                {phase !== "listening" && (
+                {phase === "reading" && (
+                  <button onClick={begin} data-cursor="Sing" className="absolute right-0 top-0 rounded-full bg-sindoor px-5 py-2 text-[14px] text-paper shadow-[0_8px_24px_-10px_rgba(178,58,34,.8)] transition-transform hover:scale-105">Sing again</button>
+                )}
+                {phase === "tune" && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 text-center">
                     <button onClick={begin} data-cursor="Sing" aria-label="Start singing"
                       className="group relative flex h-36 w-36 items-center justify-center rounded-full bg-sindoor text-paper shadow-[0_18px_60px_-18px_rgba(178,58,34,.8)] transition-transform hover:scale-105">
                       <span className="absolute inset-[-10px] rounded-full border border-sindoor/30 transition-transform duration-700 group-hover:scale-110" />
-                      <span className="font-display text-[30px]">{phase === "reading" ? "Again" : "Sing"}</span>
+                      <span className="font-display text-[30px]">Sing</span>
                     </button>
                     <span className="max-w-[420px] text-[14px] text-kajal/60">Start on Sa, then wander. Hum, sing &ldquo;aa&rdquo;, or sing sargam. Headphones help. Nothing you sing leaves this page.</span>
                     {error && <span className="text-[14px] text-sindoor">{error}</span>}
