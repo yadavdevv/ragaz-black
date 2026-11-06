@@ -45,14 +45,61 @@ export const PRESETS: Preset[] = [
   },
 ];
 
-export type Piece = { notes: Note[]; lyrics?: Lyric[]; beats: number; raga: Raga; saHz: number };
-export type Layers = Partial<Record<"voice" | "double" | "ghost" | "drone" | "pad" | "bass" | "kick" | "hats" | "tabla" | "crackle" | "riser", boolean>>;
-export const LAYERS = ["voice", "double", "ghost", "drone", "pad", "bass", "kick", "hats", "tabla", "crackle", "riser"] as const;
+/** A bandish (notes, words) plus two wordless phrases in its raga: an interlude between sthayi and
+ *  antara, and a coda after the last words (aakar, doubled by the bansuri). */
+export type Piece = { notes: Note[]; lyrics?: Lyric[]; beats: number; raga: Raga; saHz: number; interlude?: Note[]; coda?: Note[] };
+export type Layers = Partial<Record<(typeof LAYERS)[number], boolean>>;
+export const LAYERS = ["voice", "double", "ghost", "bansuri", "drone", "pad", "bass", "kick", "hats", "tabla", "crackle", "riser"] as const;
 
-const INTRO = 16, OUTRO = 8;
+const OUTRO = 2; // a short tail: the track ends with the music, not a drone
 const THEKA = ["dha", "dhin", "dhin", "dha", "dha", "dhin", "dhin", "dha", "dha", "tin", "tin", "ta", "ta", "dhin", "dhin", "dha"];
 
-export const lengthInBeats = (p: Piece) => INTRO + p.beats + OUTRO;
+const span = (ns: Note[] | undefined) => (ns?.length ? Math.ceil(Math.max(...ns.map((n) => n.t + n.d)) / 4) * 4 : 0);
+
+/** The track's timeline: sthayi, interlude, antara, coda, as one run of notes and words. */
+export function arrange(p: Piece) {
+  const half = p.beats / 2, I = span(p.interlude), C = span(p.coda);
+  const shift = (ns: Note[], by: number) => ns.map((n) => ({ ...n, t: n.t + by }));
+  const notes = [...p.notes.filter((n) => n.t < half), ...shift(p.interlude ?? [], half), ...shift(p.notes.filter((n) => n.t >= half), I), ...shift(p.coda ?? [], p.beats + I)];
+  const lyrics = p.lyrics?.map((l) => ({ ...l, t: l.t < half ? l.t : l.t + I }));
+  const flute = [...shift(p.interlude ?? [], half), ...shift(p.coda ?? [], p.beats + I)];
+  const beats = p.beats + I + C;
+  const sections: [string, number, number][] = [["sthayi", 0, half], ...(I ? [["interlude", half, I] as [string, number, number]] : []), ["antara", half + I, half], ...(C ? [["coda", p.beats + I, C] as [string, number, number]] : [])];
+  return { notes, lyrics, flute, beats, antara: half + I, sections };
+}
+
+export const lengthInBeats = (p: Piece) => arrange(p).beats + OUTRO;
+
+/** A wordless phrase of `beats` from the composer's pieces in this raga, preferring the lower octave
+ *  (the low run after the last words was the part that worked) and, for a coda, ending on Sa. */
+export function pickPhrase(pieces: Note[][], beats = 8, opts: { low?: boolean; endOnSa?: boolean; seed?: number } = {}): Note[] {
+  const windows: { ns: Note[]; score: number }[] = [];
+  for (const ns of pieces) {
+    const end = Math.max(...ns.map((n) => n.t + n.d));
+    for (let b = 0; b + beats <= end; b += 4) {
+      const w = ns.filter((n) => n.t >= b && n.t < b + beats).map((n) => ({ ...n, t: n.t - b, d: Math.min(n.d, b + beats - n.t) }));
+      if (w.length < 5) continue;
+      const low = w.filter((n) => n.o < 0).length / w.length;
+      const last = w[w.length - 1];
+      const score = (opts.low ? 2 * low : 0) + (opts.endOnSa && last.s === "S" ? 1 : 0) - w.filter((n) => n.o > 0).length / w.length;
+      windows.push({ ns: w, score });
+    }
+  }
+  if (!windows.length) return [];
+  windows.sort((a, b) => b.score - a.score);
+  const top = windows.slice(0, 6);
+  let choice = top[(opts.seed ?? 0) % top.length].ns;
+  if (opts.endOnSa && choice[choice.length - 1].s !== "S") {
+    const last = choice[choice.length - 1];
+    choice = [...choice.slice(0, -1), { ...last, d: Math.max(0.5, last.d - 1) }, { s: "S", o: 0, t: last.t + Math.max(0.5, last.d - 1), d: 1, bar: last.bar, ok: true }];
+  }
+  // The composer rarely goes this low on its own: if the phrase isn't mostly in the lower octave
+  // already, sing it there (mandra), the register of the passage that worked.
+  if (opts.low && choice.filter((n) => n.o < 0).length < choice.length / 2 && Math.max(...choice.map((n) => n.o)) <= 0) {
+    choice = choice.map((n) => ({ ...n, o: n.o - 1 }));
+  }
+  return choice;
+}
 
 /** Snap each syllable to the nearest note start within half a beat (the model's bol line sometimes
  *  puts a syllable on a held beat; sung, it starts where a note does). */
@@ -116,15 +163,16 @@ function softClip(ctx: BaseAudioContext, drive = 1.4) {
 export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, preset: Preset, layers: Layers = {}, t0 = ctx.currentTime + 0.15) {
   const on = (k: (typeof LAYERS)[number]) => layers[k] !== false;
   const beat = 60 / preset.tempo;
-  const T = (b: number) => t0 + b * beat; // beat → seconds (beat 0 = start of the intro)
-  const P = (b: number) => T(INTRO + b); // a beat of the piece
-  const total = lengthInBeats(piece);
+  const T = (b: number) => t0 + b * beat; // beat → seconds (beat 0 = the first note)
+  const P = T;
+  const arr = arrange(piece);
+  const total = arr.beats + OUTRO;
   const end = T(total) + preset.reverb.seconds;
   const sources: AudioScheduledSourceNode[] = [];
   const keep = <S extends AudioScheduledSourceNode>(s: S) => (sources.push(s), s);
   const noise = noiseBuffer(ctx);
   const sa = piece.saHz;
-  const half = piece.beats / 2; // sthayi | antara
+  const half = arr.antara; // where the antara starts (after the interlude)
 
   // ---------------------------------------------------------------- master and sends
   const masterIn = ctx.createGain();
@@ -137,11 +185,11 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
   const clip = softClip(ctx, 1.3);
   const master = ctx.createGain();
   master.gain.setValueAtTime(0, t0);
-  master.gain.linearRampToValueAtTime(0.85, t0 + 1.5);
+  master.gain.linearRampToValueAtTime(0.85, t0 + 0.05); // everything together from the first beat
   masterIn.connect(shelf).connect(top).connect(comp).connect(clip).connect(master).connect(dest);
   // Outro: the filter closes and the track fades.
-  top.frequency.setValueAtTime(preset.top, T(total - OUTRO));
-  top.frequency.exponentialRampToValueAtTime(500, T(total) + 1);
+  top.frequency.setValueAtTime(preset.top, T(arr.beats - 2));
+  top.frequency.exponentialRampToValueAtTime(900, T(total) + 0.5);
   master.gain.setValueAtTime(0.85, T(total - 2));
   master.gain.linearRampToValueAtTime(0, end);
 
@@ -175,15 +223,15 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
   };
 
   // ---------------------------------------------------------------- the voice
-  const lyrics = piece.lyrics ? snapLyrics(piece.lyrics, piece.notes) : undefined;
+  const lyrics = arr.lyrics ? snapLyrics(arr.lyrics, arr.notes) : undefined;
   const wave = voiceWave(ctx);
   const sing = (out: AudioNode, shift = 1, lag = 0, level = 1) => {
     const v = new Voice(ctx, out, noise, wave);
     const hz = (n: Note) => swaraHz(n.s, n.o, sa) * shift;
-    v.start(P(piece.notes[0].t) + lag, hz(piece.notes[0]));
-    piece.notes.forEach((n, i) => v.note(P(n.t) + lag, hz(n), n.d * beat, i === 0, level));
+    v.start(P(arr.notes[0].t) + lag, hz(arr.notes[0]));
+    arr.notes.forEach((n, i) => v.note(P(n.t) + lag, hz(n), n.d * beat, i === 0, level));
     if (lyrics) for (const l of lyrics) v.syllable(P(l.t) + lag, phone(l.syl), level);
-    v.release(P(piece.beats) + lag + 0.4);
+    v.release(P(arr.beats) + lag + 0.4);
     sources.push(v.osc, v.lfo, v.wobble, v.noise);
   };
   if (on("voice")) {
@@ -195,7 +243,7 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
       throwSend.gain.value = 0;
       vocal.connect(throwSend).connect(delayIn);
       lyrics.forEach((l, i) => {
-        const next = lyrics[i + 1]?.t ?? piece.beats;
+        const next = lyrics[i + 1]?.t ?? arr.beats;
         if (next - l.t >= 2) {
           throwSend.gain.setTargetAtTime(preset.delay.throw, P(l.t), 0.02);
           throwSend.gain.setTargetAtTime(0, P(l.t) + beat, 0.05);
@@ -217,6 +265,25 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
       g.connect(lp).connect(ghost);
       sing(g, 0.5, 0.03, 0.8);
     }
+  }
+
+  // ---------------------------------------------------------------- bansuri (interlude and coda)
+  if (arr.flute.length && on("bansuri")) {
+    const flute = bus(0.42, 0.25, 0.4, 0.15);
+    let phrase: Note[] = [];
+    const play = (ns: Note[]) => {
+      if (!ns.length) return;
+      const f = new Bansuri(ctx, flute, noise);
+      ns.forEach((n, i) => f.note(P(n.t), swaraHz(n.s, n.o, sa) * 2, n.d * beat, i === 0));
+      f.release(P(ns[ns.length - 1].t + ns[ns.length - 1].d) + 0.2);
+      sources.push(...f.sources);
+    };
+    for (const n of arr.flute) {
+      const prev = phrase[phrase.length - 1];
+      if (prev && n.t - (prev.t + prev.d) > 1) { play(phrase); phrase = []; }
+      phrase.push(n);
+    }
+    play(phrase);
   }
 
   // ---------------------------------------------------------------- drone and pad
@@ -243,7 +310,7 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
     lfo.connect(lfoAmt).connect(lp.frequency);
     const env = ctx.createGain();
     env.gain.setValueAtTime(0, T(0));
-    env.gain.linearRampToValueAtTime(1, T(INTRO));
+    env.gain.linearRampToValueAtTime(1, T(1));
     lp.connect(env).connect(pad);
     for (const [hz, det] of [[sa / 2, 0], [sa / 2, 7], [swaraHz(piece.raga.tanpura, -1, sa), -5], [sa, 3]] as const) {
       const o = keep(ctx.createOscillator());
@@ -256,13 +323,13 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
   }
 
   // ---------------------------------------------------------------- rhythm
-  const cycles = Math.ceil(piece.beats / 16);
+  const cycles = Math.ceil(arr.beats / 16);
   const kicks: number[] = [];
   if (preset.kick.length && on("kick")) {
     const kickOut = ctx.createGain(); kickOut.gain.value = 0.9; kickOut.connect(masterIn);
     for (let c = 0; c < cycles; c++) for (const k of preset.kick) {
       const b = c * 16 + k;
-      if (b < half) continue; // the kick enters with the antara
+      if (b >= arr.beats) continue;
       kicks.push(b);
       const t = P(b);
       const o = keep(ctx.createOscillator());
@@ -283,7 +350,7 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
     const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 7000;
     hp.connect(hats);
     const step = preset.hats.sixteenths ? 0.25 : 0.5;
-    for (let b = 0; b < piece.beats; b += step) {
+    for (let b = 0; b < arr.beats; b += step) {
       const pos = b % 1;
       const swung = pos === 0.5 ? b + (preset.hats.swing - 0.5) : b;
       const accent = pos === 0 ? 1 : 0.55;
@@ -298,7 +365,7 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
   }
   if (preset.tabla && on("tabla")) {
     const tabla = bus(preset.tabla, -0.2, 0.2);
-    for (let b = 0; b < piece.beats; b++) stroke(ctx, tabla, noise, sa, THEKA[b % 16], P(b), b % 16 === 0 ? 1 : 0.7, keep);
+    for (let b = 0; b < arr.beats; b++) stroke(ctx, tabla, noise, sa, THEKA[b % 16], P(b), b % 16 === 0 ? 1 : 0.7, keep);
   }
   if (preset.bass.level && on("bass")) {
     const bass = bus(preset.bass.level, 0);
@@ -307,10 +374,10 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
     lp.connect(sat).connect(bass);
     const root = sa > 160 ? sa / 4 : sa / 2;
     const fifth = swaraHz(piece.raga.tanpura, 0, root);
-    const from = preset.bass.from === "sthayi" ? 0 : half;
+    const from = 0; // all together: the bass plays from the first sam
     for (let c = 0; c < cycles; c++) for (const [k, hz] of [[0, root], [8, fifth]] as const) {
       const b = c * 16 + k;
-      if (b < from) continue;
+      if (b < from || b >= arr.beats) continue;
       const t = P(b), len = 6 * beat;
       for (const [mult, g] of [[1, 1], [2, 0.25]] as const) {
         const o = keep(ctx.createOscillator()); o.frequency.value = hz * mult;
@@ -356,6 +423,54 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
       for (const s of sources) { try { s.stop(now + 0.6); } catch { /* not started yet */ } }
     },
   };
+}
+
+/** A bansuri-like flute: a sine with a soft octave above, slow vibrato, breath noise, glides. */
+class Bansuri {
+  sources: AudioScheduledSourceNode[] = [];
+  private osc: OscillatorNode;
+  private oct: OscillatorNode;
+  private amp: GainNode;
+  private breath: GainNode;
+  private vib: GainNode;
+  constructor(ctx: BaseAudioContext, out: AudioNode, noise: AudioBuffer) {
+    this.osc = ctx.createOscillator();
+    this.oct = ctx.createOscillator();
+    this.oct.type = "triangle";
+    const octGain = ctx.createGain(); octGain.gain.value = 0.12;
+    this.amp = ctx.createGain(); this.amp.gain.value = 0;
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 3200;
+    this.osc.connect(this.amp);
+    this.oct.connect(octGain).connect(this.amp);
+    this.amp.connect(lp).connect(out);
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 4.8;
+    this.vib = ctx.createGain(); this.vib.gain.value = 0;
+    lfo.connect(this.vib);
+    this.vib.connect(this.osc.frequency);
+    const n = ctx.createBufferSource(); n.buffer = noise; n.loop = true;
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 1500; bp.Q.value = 0.9;
+    this.breath = ctx.createGain(); this.breath.gain.value = 0;
+    n.connect(bp).connect(this.breath).connect(out);
+    this.sources.push(this.osc, this.oct, lfo, n);
+  }
+  note(at: number, hz: number, dur: number, first: boolean) {
+    if (first) {
+      for (const s of this.sources) s.start(at - 0.05);
+      this.osc.frequency.setValueAtTime(hz * 0.98, at);
+      this.oct.frequency.setValueAtTime(hz * 1.96, at);
+    }
+    this.osc.frequency.setTargetAtTime(hz, at - 0.02, 0.03);
+    this.oct.frequency.setTargetAtTime(hz * 2, at - 0.02, 0.03);
+    this.amp.gain.setTargetAtTime(0.32, at, first ? 0.04 : 0.02);
+    this.breath.gain.setTargetAtTime(0.05, at, 0.01);
+    this.breath.gain.setTargetAtTime(0.018, at + 0.08, 0.1);
+    this.vib.gain.setTargetAtTime(0, at, 0.02);
+    if (dur > 0.4) this.vib.gain.setTargetAtTime(hz * 0.008, at + 0.25, 0.2);
+  }
+  release(at: number) {
+    for (const g of [this.amp.gain, this.breath.gain]) { g.cancelScheduledValues(at); g.setTargetAtTime(0, at, 0.12); }
+    for (const s of this.sources) s.stop(at + 1.2);
+  }
 }
 
 /** One tabla stroke: the dayan's loaded membrane over Sa, the bayan's bend (as in audio.ts). */
