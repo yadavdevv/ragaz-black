@@ -13,11 +13,11 @@ import { RiseChars } from "@/components/Text";
 import { getEngine } from "@/lib/audio";
 import { ragaOfHour } from "@/lib/music";
 import { tick, useData } from "@/lib/site";
-import { LAYERS, type Layers, PRESETS, type Piece, lengthInBeats, produce, renderWav } from "@/lib/studio";
+import { LAYERS, type Layers, PRESETS, type Piece, arrange, lengthInBeats, pickPhrase, produce, renderWav } from "@/lib/studio";
 
 const SA = 220;
 const LAYER_NAMES: Record<(typeof LAYERS)[number], string> = {
-  voice: "Voice", double: "Double", ghost: "Ghost (octave down)", drone: "Tanpura", pad: "Pad", bass: "Sub bass",
+  voice: "Voice", double: "Double", ghost: "Ghost (octave down)", bansuri: "Bansuri", drone: "Tanpura", pad: "Pad", bass: "Sub bass",
   kick: "Kick + pump", hats: "Hats", tabla: "Tabla", crackle: "Crackle", riser: "Riser",
 };
 
@@ -50,10 +50,17 @@ export default function Studio() {
   const b = bandishes[pick];
   const raga = ragas.find((r) => r.key === b?.raga);
   const preset = PRESETS.find((p) => p.key === presetKey)!;
-  const piece: Piece | null = useMemo(() => (b && raga ? { notes: b.notes, lyrics: lyricsOf(b.bol), beats: b.beats, raga, saHz: SA } : null), [b, raga]);
+  // The wordless parts (interlude, coda): phrases from the newest composer's pieces in this raga,
+  // low-octave first, the coda coming home to Sa.
+  const piece: Piece | null = useMemo(() => {
+    if (!b || !raga || !data) return null;
+    const pool = data.latest.pieces.filter((p) => p.raga === raga.key).map((p) => p.notes);
+    return { notes: b.notes, lyrics: lyricsOf(b.bol), beats: b.beats, raga, saHz: SA, interlude: pickPhrase(pool, 8, { low: true, seed: pick }), coda: pickPhrase(pool, 8, { low: true, endOnSa: true, seed: pick + 1 }) };
+  }, [b, raga, data, pick]);
+  const arr = useMemo(() => (piece ? arrange(piece) : null), [piece]);
   const total = piece ? lengthInBeats(piece) : 0;
   if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") Object.assign(window, { __studio: { renderWav, PRESETS, piece, bandish: b } }); // read by the headless render
-  const section = beatNow === null || !piece ? null : beatNow < 16 ? "intro" : beatNow < 16 + piece.beats / 2 ? "sthayi" : beatNow < 16 + piece.beats ? "antara" : "outro";
+  const section = beatNow === null || !arr ? null : (arr.sections.find(([, start, len]) => beatNow >= start && beatNow < start + len)?.[0] ?? null);
 
   const stop = () => {
     handle.current?.stop();
@@ -100,7 +107,8 @@ export default function Studio() {
   };
 
   const toggle = (k: (typeof LAYERS)[number]) => { tick("soft"); setLayers((l) => ({ ...l, [k]: l[k] === false })); };
-  const head = beatNow !== null && piece ? beatNow - 16 : null;
+  // The sheet shows the bandish only: map the track's beat back to it (none during interlude and coda).
+  const head = beatNow === null || !arr || !piece ? null : section === "sthayi" ? beatNow : section === "antara" ? beatNow - arr.antara + piece.beats / 2 : null;
 
   return (
     <main className="bg-transparent">
@@ -110,7 +118,7 @@ export default function Studio() {
           <div className="text-[12px] uppercase tracking-[0.24em] text-sepia">Studio</div>
           <h1 className="mt-4 font-display text-[clamp(64px,10vw,170px)] leading-[0.88]"><RiseChars text="Produce it." /></h1>
           <p className="mt-8 max-w-[680px] text-[clamp(18px,2vw,22px)] leading-[1.5] text-kajal/80">
-            A bandish the model composed, made into a track: the raga melody and sung words on top, and underneath, a bed built the way records are made. A drone and pad, a sub on sam and khali, a kick the whole bed breathes with, swung hats, tabla, crackle, and a riser into the antara.
+            A bandish the model composed, made into a track: the raga melody and sung words on top, a bed built the way records are made underneath, all together from the first beat. Between the sthayi and the antara, and after the last words, the voice and a bansuri carry on without words, low in the raga.
           </p>
         </div>
       </section>
@@ -140,12 +148,12 @@ export default function Studio() {
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <Magnetic variant="solid" cursor={playing ? "Stop" : "Listen"} onClick={play}>{playing ? "❚❚ Stop" : "▶ Play the track"}</Magnetic>
                 <Magnetic cursor="Save" onClick={download}>{rendering ? "Rendering…" : "Download WAV"}</Magnetic>
-                {piece && <span className="text-[13px] text-kajal/55">{Math.round((total * 60) / preset.tempo)} s · intro, sthayi, antara, outro</span>}
+                {arr && <span className="text-[13px] text-kajal/55">{Math.round((total * 60) / preset.tempo)} s · {arr.sections.map(([n]) => n).join(", ")}</span>}
               </div>
-              {piece && (
+              {arr && (
                 <div className="mt-5 flex h-2 overflow-hidden rounded-full bg-paper2">
-                  {[["intro", 16], ["sthayi", piece.beats / 2], ["antara", piece.beats / 2], ["outro", 8]].map(([name, len]) => (
-                    <div key={name as string} className={`h-full border-r border-paper transition-colors ${section === name ? "bg-sindoor" : "bg-kajal/15"}`} style={{ width: `${((len as number) / total) * 100}%` }} title={name as string} />
+                  {arr.sections.map(([name, , len]) => (
+                    <div key={name} className={`h-full border-r border-paper transition-colors ${section === name ? "bg-sindoor" : name === "interlude" || name === "coda" ? "bg-sona/40" : "bg-kajal/15"}`} style={{ width: `${(len / total) * 100}%` }} title={name} />
                   ))}
                 </div>
               )}
