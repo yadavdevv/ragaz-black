@@ -5,6 +5,8 @@
 set -e
 cd "$(dirname "$0")/.."
 export OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 PYTORCH_ENABLE_MPS_FALLBACK=1
+# python.org builds ship without CA certificates: Demucs downloads its weights over HTTPS.
+export SSL_CERT_FILE="$(uv run python -c 'import certifi; print(certifi.where())')"
 while pgrep -f "fetch_hindustani_vocal.py fetch" >/dev/null; do sleep 30; done
 uv run --extra voice python scripts/fetch_hindustani_vocal.py fetch >> logs/voice2-fetch.log 2>&1   # finishes any missing file
 echo "== separate $(date +%H:%M)"
