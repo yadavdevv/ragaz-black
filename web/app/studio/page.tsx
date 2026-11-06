@@ -13,12 +13,12 @@ import { RiseChars } from "@/components/Text";
 import { getEngine } from "@/lib/audio";
 import { ragaOfHour } from "@/lib/music";
 import { tick, useData } from "@/lib/site";
-import { LAYERS, type Layers, PRESETS, type Piece, arrange, lengthInBeats, pickPhrase, produce, renderWav } from "@/lib/studio";
+import { LAYERS, type Layers, PRESETS, type Piece, arrange, lengthInBeats, pickPhrase, produce, renderWav, themeFor } from "@/lib/studio";
 
 const SA = 220;
 const LAYER_NAMES: Record<(typeof LAYERS)[number], string> = {
   voice: "Voice", double: "Double", ghost: "Ghost (octave down)", bansuri: "Bansuri", drone: "Tanpura", pad: "Pad", bass: "Sub bass",
-  kick: "Kick + pump", hats: "Hats", tabla: "Tabla", crackle: "Crackle", riser: "Riser",
+  kick: "Kick + pump", clap: "Clap / snare", hats: "Hats", tabla: "Tabla", texture: "Crackle / rain", riser: "Riser",
 };
 
 export default function Studio() {
@@ -48,18 +48,21 @@ export default function Studio() {
   }, [bandishes, ragas]);
 
   const b = bandishes[pick];
+  useEffect(() => { if (b) setPresetKey(themeFor(b.raga).key); }, [b]);
   const raga = ragas.find((r) => r.key === b?.raga);
   const preset = PRESETS.find((p) => p.key === presetKey)!;
   // The wordless parts (interlude, coda): phrases from the newest composer's pieces in this raga,
   // low-octave first, the coda coming home to Sa.
-  const piece: Piece | null = useMemo(() => {
-    if (!b || !raga || !data) return null;
-    const pool = data.latest.pieces.filter((p) => p.raga === raga.key).map((p) => p.notes);
-    return { notes: b.notes, lyrics: lyricsOf(b.bol), beats: b.beats, raga, saHz: SA, interlude: pickPhrase(pool, 8, { low: true, seed: pick }), coda: pickPhrase(pool, 8, { low: true, endOnSa: true, seed: pick + 1 }) };
-  }, [b, raga, data, pick]);
+  const build = (i: number): Piece | null => {
+    const x = bandishes[i], r = ragas.find((y) => y.key === x?.raga);
+    if (!x || !r || !data) return null;
+    const pool = data.latest.pieces.filter((p) => p.raga === r.key).map((p) => p.notes);
+    return { notes: x.notes, lyrics: lyricsOf(x.bol), beats: x.beats, raga: r, saHz: SA, interlude: pickPhrase(pool, 8, { low: true, seed: i }), coda: pickPhrase(pool, 8, { low: true, endOnSa: true, seed: i + 1 }) };
+  };
+  const piece: Piece | null = useMemo(() => build(pick), [bandishes, ragas, data, pick]); // eslint-disable-line react-hooks/exhaustive-deps
   const arr = useMemo(() => (piece ? arrange(piece) : null), [piece]);
   const total = piece ? lengthInBeats(piece) : 0;
-  if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") Object.assign(window, { __studio: { renderWav, PRESETS, piece, bandish: b } }); // read by the headless render
+  if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") Object.assign(window, { __studio: { renderWav, PRESETS, piece, bandish: b, bandishes, build, themeFor } }); // read by the headless render
   const section = beatNow === null || !arr ? null : (arr.sections.find(([, start, len]) => beatNow >= start && beatNow < start + len)?.[0] ?? null);
 
   const stop = () => {
@@ -108,7 +111,7 @@ export default function Studio() {
 
   const toggle = (k: (typeof LAYERS)[number]) => { tick("soft"); setLayers((l) => ({ ...l, [k]: l[k] === false })); };
   // The sheet shows the bandish only: map the track's beat back to it (none during interlude and coda).
-  const head = beatNow === null || !arr || !piece ? null : section === "sthayi" ? beatNow : section === "antara" ? beatNow - arr.antara + piece.beats / 2 : null;
+  const head = beatNow === null || !arr ? null : arr.toSheet(beatNow);
 
   return (
     <main className="bg-transparent">
@@ -129,13 +132,13 @@ export default function Studio() {
           <div className="space-y-6">
             <div className="leaf-card border border-rule p-6">
               <div className="text-[12px] uppercase tracking-[0.24em] text-sepia">1 · The sound</div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 {PRESETS.map((p) => (
                   <button key={p.key} onClick={() => { tick(); setPresetKey(p.key); }}
                     className={`rounded-xl border p-4 text-left transition-colors ${p.key === presetKey ? "border-sindoor bg-paper2/60" : "border-rule hover:border-sindoor/60"}`}>
                     <div className="font-display text-[26px] leading-none">{p.name}</div>
                     <div className="mt-2 text-[13px] leading-[1.5] text-kajal/65">{p.blurb}</div>
-                    <div className="mt-2 text-[12px] text-kajal/45">{p.tempo} bpm</div>
+                    <div className="mt-2 text-[12px] text-kajal/45">{p.tempo} bpm{b && themeFor(b.raga).key === p.key ? " · this raga's theme" : ""}</div>
                   </button>
                 ))}
               </div>
@@ -153,7 +156,7 @@ export default function Studio() {
               {arr && (
                 <div className="mt-5 flex h-2 overflow-hidden rounded-full bg-paper2">
                   {arr.sections.map(([name, , len]) => (
-                    <div key={name} className={`h-full border-r border-paper transition-colors ${section === name ? "bg-sindoor" : name === "interlude" || name === "coda" ? "bg-sona/40" : "bg-kajal/15"}`} style={{ width: `${(len / total) * 100}%` }} title={name} />
+                    <div key={name} className={`h-full border-r border-paper transition-colors ${section === name ? "bg-sindoor" : ["interlude", "taan", "coda"].includes(name) ? "bg-sona/40" : "bg-kajal/15"}`} style={{ width: `${(len / total) * 100}%` }} title={name} />
                   ))}
                 </div>
               )}
