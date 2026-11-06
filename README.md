@@ -26,7 +26,11 @@
 
 Qwen3-0.6B, adapted with LoRA, learns to write ragas in sargam notation (`S R G P | G R S - | …`) from nothing but the raga's name. A verifier scores every piece against the raga's rules and against measurements of real concert singers; GRPO pushes the model toward whatever scores higher. Supervised fine-tuning fills in the facts reinforcement learning cannot discover on its own.
 
-Ragas: **Bhupali, Yaman, Malkauns, Deshkar** (Deshkar shares Bhupali's five notes; only emphasis and movement tell them apart).
+Ragas (13, a full day and the seasons): **Bhairav** (dawn), **Todi**, **Deshkar**, **Shuddh Sarang** (midday), **Madhuvanti**, **Marwa** (sunset), **Yaman**, **Bhupali**, **Bihag**, **Darbari** (midnight), **Malkauns**, **Miyan Malhar** (the monsoon), **Basant** (spring). Deshkar shares Bhupali's five notes; only emphasis and movement tell them apart.
+
+On the site:
+- **Sing to it:** hum over the tanpura; your line is written as sargam, read for its raga (with the notes that gave it away), and answered in that raga. Pitch tracking and the reading run in the browser.
+- **Words:** any text, in any script, set in a raga the way a bandish sets its words; and bandishes the model composed for real verse (Kabir, Surdas, Bihari), words under the notes as Bhatkhande prints them.
 
 ## What we found
 
@@ -35,6 +39,9 @@ Ragas: **Bhupali, Yaman, Malkauns, Deshkar** (Deshkar shares Bhupali's five note
 | **Every reward gets hacked.** | One note repeated, octave hopping, copying the prompt's example, 32-bar loops, one answer for every raga, bars chopped to 1–3 beats. Each was real, each looked like progress in the curves, and each led to a new term. The lesson: **hard rules must multiply**; anything in a weighted sum gets traded away. |
 | **RL can't teach a fact.** | Asked for Malkauns by name, the model never stumbled on its notes, so every attempt scored zero for 100 steps. Fine-tuning on a few hundred good examples fixed it in 30 steps (0.00 → 0.82). |
 | **Rules aren't music.** | Trained on textbook rules (v1), the model rested on Sa 7–13% of the time; real singers do 35–38%. Re-grounding the reward in 30 CompMusic concert recordings (v2) brought it to 36% / 21% / 39%. |
+| **Facts first, again (v6).** | Asked for nine new ragas with their notes in the prompt, v5e still wrote Bhupali (288 of 288). Taught from real singers' own phrases first, then GRPO: a reader trained only on real singers (never a reward) names the right raga for **100%** of name-only pieces; Bhupali/Deshkar twin test 100%, no forbidden notes, realism 0.89. |
+| **The reader hears ragas everywhere.** | From 10 s of singing it names the raga of held-out concerts 82% of the time (top 3: 97%, 12 ragas), calibrated. Played tunes from elsewhere: Amazing Grace is Bhupali, the Lydian mode Yaman, the Byzantine scale Bhairav, the blues' pentatonic Malkauns. |
+| **Words and notes together.** | A bandish model writes notes and words in one Bhatkhande layout. Giving it the syllables raised fidelity to the words from 0.77 to 0.94; the mukhda lands on sam in 25 of 26 site bandishes. Its own words still mean nothing, so only real verse is shown. GRPO added nothing here. |
 | **Closer to performance (v5e).** | 16-bar pieces with a sthayi → antara arc; ~34% of time in the upper octave (real singers 19–46%; v4: 0%); uneven runs and holds (duration CV 1.24, real 1.47; v4 0.40); median note 0.21 s (real 0.21 s). |
 
 The full experiment log, run by run, is in the project notes (`ideas/ragaz/experiments.md` in the parent workspace).
@@ -123,7 +130,8 @@ web/              the website (Next.js) — see web/README.md
 
 ## Data and credits
 
-- **CompMusic Indian Art Music Raga Recognition Dataset** (features), Gulati et al., Zenodo 10.5281/zenodo.7278506, CC BY 4.0: pitch tracks of 30 concert recordings for the real-music reward.
+- **CompMusic Indian Art Music Raga Recognition Dataset** (features), Gulati et al., Zenodo 10.5281/zenodo.7278506, CC BY 4.0: pitch tracks and resting-note annotations of 120 concert recordings (12 ragas) for the real-music reward and the Sing-to-it reader.
+- **Hindi Wikisource** transcriptions (CC BY-SA 4.0) of public-domain editions: Surdas's *Bhramargeet-saar* (ed. Ramchandra Shukla), *Kabir Granthavali* (ed. Shyamsundar Das), *Bihari-Ratnakar* (ed. Jagannathdas Ratnakar), *Rahim-Kavitavali*: the bandish texts, cleaned by `scripts/build_lyrics_corpus.py`.
 - **Saraga 1.5 Carnatic** multitrack, Zenodo 10.5281/zenodo.4301737, **CC BY-NC-SA 4.0** (research, non-commercial): vocal and violin stems for the DDSP voices.
 - **Ragamala paintings** on the site: The Metropolitan Museum of Art (CC0), Rijksmuseum (public domain), Victoria and Albert Museum (non-commercial).
 - Raga rules from standard Bhatkhande descriptions; **not yet reviewed by a musician**.

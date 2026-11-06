@@ -66,7 +66,20 @@ def main() -> None:
     p_distill.add_argument("--min-reward", type=float, default=0.85)
     p_distill.add_argument("--max-per-raga", type=int, default=120, help="cap kept pieces per raga (keeps classes balanced)")
     p_distill.add_argument("--out", default="data/distilled.jsonl")
-    p_distill.add_argument("--style", default="v1", help="reward style used to score pieces (v1..v4)")
+    p_distill.add_argument("--style", default="v1", help="reward style used to score pieces (v1..v6)")
+    p_distill.add_argument("--bars", type=int, default=8, help="bars asked for (16 = sthayi + antara)")
+    p_distill.add_argument("--rhythm", action="store_true", help="v5 rhythm prompt (quick runs and held notes)")
+    p_distill.add_argument("--variant", default="hinted", choices=["hinted", "bare"])
+    p_distill.add_argument("--batch", type=int, default=8, help="sequences generated at once")
+    p_distill.add_argument("--memory-gb", type=float, default=5)
+
+    p_bsft = sub.add_parser("bandish-sft", help="bandish composer (words + notes): supervised fine-tuning")
+    p_bsft.add_argument("--config", required=True)
+    p_bsft.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE")
+    p_btrain = sub.add_parser("bandish-train", help="bandish composer: GRPO against the bandish reward")
+    p_btrain.add_argument("--config")
+    p_btrain.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE")
+    p_btrain.add_argument("--resume")
 
     p_sft = sub.add_parser("sft", help="supervised fine-tuning on distilled compositions")
     p_sft.add_argument("--config", required=True)
@@ -77,7 +90,19 @@ def main() -> None:
     if args.command == "distill":
         from ragaz.distill import distill
 
-        distill(args.model, args.adapter, args.ragas, args.per_raga, Path(args.out), args.min_reward, args.max_per_raga, style=args.style)
+        distill(args.model, args.adapter, args.ragas, args.per_raga, Path(args.out), args.min_reward, args.max_per_raga, batch=args.batch, memory_gb=args.memory_gb, style=args.style, bars=args.bars, rhythm=args.rhythm, variant=args.variant)
+        return
+
+    if args.command == "bandish-sft":
+        from ragaz.bandish_train import bandish_sft
+
+        bandish_sft(args.config, args.set)
+        return
+
+    if args.command == "bandish-train":
+        from ragaz.bandish_train import bandish_train
+
+        bandish_train(args.config, args.set, args.resume)
         return
 
     if args.command == "sft":

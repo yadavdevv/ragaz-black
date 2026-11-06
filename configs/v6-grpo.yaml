@@ -1,0 +1,41 @@
+# v6 step 2: GRPO polish over all 13 ragas with the v6 reward (v5's, scored against real
+# profiles of the 12 recorded ragas), hints held at 30% as in v4-final, from the v6 SFT.
+name: v6-grpo
+model: mlx-community/Qwen3-0.6B-bf16
+tracker: trackio
+init_adapter: null        # set by scripts/run_v6.sh to the v6 SFT's best checkpoint
+ragas: [bhupali, yaman, malkauns, deshkar, bhairav, todi, shuddh_sarang, madhuvanti, marwa, bihag, darbari, miyan_malhar, basant]
+reward_style: v6
+rhythm_prompt: true
+target_bars: 16
+
+steps: 60
+prompts_per_step: 6       # cycles through the 13 ragas
+group_size: 8
+temperature: 1.0
+max_tokens: 320
+
+lr: 1.0e-5
+warmup_steps: 5
+beta: 0.04
+lora_rank: 16
+lora_layers: 16
+duplicate_penalty: 0.5
+novelty_ref: data/real_long_v6.jsonl
+novelty_weight: 0.3
+group_profile_weight: 0.4
+
+hint_start: 0.3
+hint_end: 0.3
+
+eval_every: 15
+eval_samples: 6
+save_every: 15
+best_metric: eval/bare/real_twin_score
+micro_batch: 2
+gen_batch: 12
+memory_gb: 6
+hard_memory_gb: 9
+min_free_gb: 2.5
+governor_full_gb: 4.0
+governor_pause_gb: 3.0

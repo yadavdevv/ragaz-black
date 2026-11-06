@@ -32,6 +32,16 @@ from ragaz.ragas import SWARAS
 
 FEATURES = Path("data/external/compmusic/features")
 PROFILES = Path("data/real_profiles.json")
+# v6 adds nine ragas. Phrase distinctiveness is relative to all ragas, so the v6 profiles
+# live in their own file and the v5 reward (the live site, parity) stays exactly as it was.
+PROFILES_V6 = Path("data/real_profiles_v6.json")
+V5_RAGAS = ["bhupali", "yaman", "malkauns"]
+# Recordings whose dataset tonic is wrong, left out of v6 (v5 is kept as it was trained).
+# Evidence (2026-11-05): share of sung time on notes outside the raga, at the given tonic vs shifted.
+V6_EXCLUDE = {
+    "Raga_-_Darbari_6e4dea78-ec22-479a-9e3c-c253a6deba7c",  # 38% outside; tonic +2 semitones → 2%
+    "Raga_Malkauns_-_Teental_5233f93f-4f1c-4ba1-9d3f-3d47a5f81d2e",  # 26% outside; tonic −5 → 7%
+}
 EXCERPT = 32
 NGRAM = 4
 MAX_INTERVAL = 12
@@ -107,11 +117,13 @@ def jsd(p: np.ndarray, q: np.ndarray) -> float:
 # ------------------------------------------------------------------- build
 
 
-def recording_excerpts(raga: str) -> dict[str, list[list[tuple[str, int, float]]]]:
+def recording_excerpts(raga: str, exclude: frozenset[str] = frozenset()) -> dict[str, list[list[tuple[str, int, float]]]]:
     from ragaz.transcribe import load_pitch, load_tonic, transcribe
 
     out = {}
     for pitch in sorted((FEATURES / raga).glob("*.pitch")):
+        if pitch.stem in exclude:
+            continue
         tonic = pitch.with_suffix(".tonicFine")
         if not tonic.exists():
             continue
@@ -121,11 +133,18 @@ def recording_excerpts(raga: str) -> dict[str, list[list[tuple[str, int, float]]
     return out
 
 
-def build(ragas: list[str], test_fraction: float = 0.3, seed: int = 0) -> dict:
+def recorded_ragas() -> list[str]:
+    """Ragas in ragas.yaml order that have CompMusic recordings on disk."""
+    from ragaz.ragas import load_ragas
+
+    return [k for k in load_ragas() if any((FEATURES / k).glob("*.pitch"))]
+
+
+def build(ragas: list[str], test_fraction: float = 0.3, seed: int = 0, exclude: frozenset[str] = frozenset()) -> dict:
     rng = random.Random(seed)
     excerpts, split = {}, {}
     for raga in ragas:
-        recs = recording_excerpts(raga)
+        recs = recording_excerpts(raga, exclude)
         names = sorted(recs)
         rng.shuffle(names)
         n_test = max(1, round(len(names) * test_fraction))
@@ -217,8 +236,13 @@ def calibrated(value: float, real: list[float], higher_is_better: bool) -> float
     return min(1.0, 2 * share_at_least_as_good)
 
 
-def style_scores(notes: list[tuple[str, int, float]], raga: str) -> dict[str, float] | None:
-    profiles = load_profiles()
+def profiles_path(style: str) -> str:
+    """Which real profiles a reward style is scored against: v6 adds nine ragas in its own file."""
+    return str(PROFILES_V6 if style == "v6" else PROFILES)
+
+
+def style_scores(notes: list[tuple[str, int, float]], raga: str, path: str = str(PROFILES)) -> dict[str, float] | None:
+    profiles = load_profiles(path)
     if not profiles or raga not in profiles["ragas"]:
         return None
     prof = profiles["ragas"][raga]
@@ -234,38 +258,42 @@ def style_scores(notes: list[tuple[str, int, float]], raga: str) -> dict[str, fl
 
 
 if __name__ == "__main__":
-    PROFILES.parent.mkdir(parents=True, exist_ok=True)
-    PROFILES.write_text(json.dumps(build(["bhupali", "yaman", "malkauns"])))
-    print(f"wrote {PROFILES}")
+    import sys
+
+    v6 = sys.argv[1:] == ["v6"]  # python -m ragaz.realprofile [v6]
+    out, ragas = (PROFILES_V6, recorded_ragas()) if v6 else (PROFILES, V5_RAGAS)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(build(ragas, exclude=frozenset(V6_EXCLUDE) if v6 else frozenset())))
+    print(f"wrote {out} ({', '.join(ragas)})")
 
 
 # ------------------------------------------------- pooled profile (v3 reward)
 
 
-def real_pc(raga: str) -> np.ndarray | None:
-    profiles = load_profiles()
+def real_pc(raga: str, path: str = str(PROFILES)) -> np.ndarray | None:
+    profiles = load_profiles(path)
     return np.array(profiles["ragas"][raga]["pc"]) if profiles and raga in profiles["ragas"] else None
 
 
-def realism(pieces: list[list[tuple[str, int, float]]], raga: str) -> float:
+def realism(pieces: list[list[tuple[str, int, float]]], raga: str, path: str = str(PROFILES)) -> float:
     """1 − total-variation distance between the pooled note-time profile of many pieces
     and the real profile. Stable (unlike one 32-note piece), so it's the metric that
     picks checkpoints: v2's reward rose after step 20 while this fell."""
-    target = real_pc(raga)
+    target = real_pc(raga, path)
     if target is None:
         return float("nan")  # no recordings for this raga
     pooled = pc_distribution([n for p in pieces for n in p])
     return 1 - 0.5 * float(np.abs(pooled - target).sum())
 
 
-def group_profile_ranks(pieces: list[list[tuple[str, int, float]]], raga: str) -> list[float]:
+def group_profile_ranks(pieces: list[list[tuple[str, int, float]]], raga: str, path: str = str(PROFILES)) -> list[float]:
     """Credit each piece by how much it moves its group's pooled profile toward real.
 
     Leave-one-out: d_i = JSD(pool without i, real) − JSD(pool, real). Positive d_i means
     the piece helps. Returned as ranks in [0, 1] (ties averaged), which is scale-free; GRPO
     normalises within the group anyway. A group that all skips Pa rewards whoever uses it.
     """
-    target = real_pc(raga)
+    target = real_pc(raga, path)
     if target is None:
         return [1.0] * len(pieces)  # no recordings: neutral, the rulebook terms decide
     full = jsd(pc_distribution([n for p in pieces for n in p]), target)

@@ -22,6 +22,16 @@ const ABOUT: Record<string, { mood: string; text: string[] }> = {
   yaman: { mood: "Romantic, serene", text: ["Yaman uses all seven notes, with Ma raised (tivra). That sharp Ma gives it its yearning colour.", "Ga and Ni carry the weight. Phrases often begin from the lower Ni: Ni Re Ga."] },
   deshkar: { mood: "Bright, heroic", text: ["Deshkar uses exactly Bhupali's five notes, Sa Re Ga Pa Dha, yet it is a different raga. Re is weak and often skipped on the way up, Dha is its most important note, and phrases come to rest on Pa.", "It is sung in the morning. There are no recordings of it in our reference set, so the model learned it from the rules and from examples alone."] },
   malkauns: { mood: "Meditative, grave", text: ["Malkauns has five notes and none of them are Re or Pa. Ga, Dha and Ni are flat (komal).", "Because there's no Pa, the tanpura's first string is tuned to Ma instead. Ma is its most important note."] },
+  // v6 ragas: from ragas.yaml and what the recordings showed. Not reviewed by a musician.
+  bhairav: { mood: "Devotional, solemn", text: ["Bhairav is the dawn raga. Re and Dha are flat (komal) and sung with a slow oscillation (andolan), while Ga and Ni stay natural, which gives it its grave, open sound.", "Komal Dha is its most important note and komal Re the second. A typical turn: Ga Ma Dha, held, then Ga Ma Re, falling to Sa."] },
+  todi: { mood: "Pathos, devotion", text: ["Todi, sung in the late morning, uses flat Re, Ga and Dha with a raised (tivra) Ma. Pa is used sparingly, and many phrases skip it.", "Its signature is the slow fall Re Ga Re Sa. Komal Dha is its most important note."] },
+  shuddh_sarang: { mood: "Serene, warm", text: ["Shuddh Sarang is the midday raga. It has no Ga at all, and uses both forms of Ma: the raised one on the way up, the natural one in the descent to Re.", "Re is its most important note and Pa the second."] },
+  madhuvanti: { mood: "Romantic, tender", text: ["Madhuvanti, a late-afternoon raga, pairs a flat Ga with a raised Ma. Re and Dha are skipped going up: Ni Sa Ga Ma Pa Ni Sa.", "Pa is its most important note. No published signature phrase was found, so the one used here is built from its ascent and descent."] },
+  marwa: { mood: "Restless, yearning", text: ["Marwa is the sunset raga. It has no Pa, a flat Re and a raised Ma, and its phrases keep circling komal Re instead of resting on Sa, which leaves it unresolved.", "Komal Re is its most important note and Dha the second. The tanpura's first string is tuned to Ni."] },
+  bihag: { mood: "Romantic", text: ["Bihag is sung late in the evening. It skips Re and Dha going up, and uses the raised Ma only in one turn: Pa Ma Ga Ma Ga.", "Ga is its most important note and Ni the second. In the recordings, its most distinctive phrase is exactly that turn."] },
+  darbari: { mood: "Grave, majestic", text: ["Darbari Kanada is the midnight raga of the court. Ga, Dha and Ni are flat; komal Ga and Dha are sung with a slow, wide oscillation, and it lives in the lower and middle octaves.", "Re is its most important note and Pa the second."] },
+  miyan_malhar: { mood: "Longing, the rains", text: ["Miyan Malhar is the raga of the monsoon. It is known for using both Ni, often one after the other: komal Ni, Dha, Ni, Sa.", "Ma is its most important note. No sourced signature phrase was found, so the one used here is built from its well-known Malhar turns."] },
+  basant: { mood: "Joyous, spring", text: ["Basant is the raga of spring. Re and Dha are flat and Ma is raised; real singers also touch the natural Ma, so both are allowed here.", "Upper Sa is its most important note and Pa the second. No sourced signature phrase was found, so the one used here is built from its descent."] },
 };
 
 export default function RagaPage() {
@@ -37,7 +47,7 @@ export default function RagaPage() {
   const voice = data.voices.find((v) => v.raga === raga.key);
   const newest = data.latest.pieces.filter((p) => p.raga === raga.key).sort((a, b) => b.reward - a.reward).slice(0, 3).map((p) => pieceTrack(p));
   const pieces = data.pieces.filter((p) => p.raga === raga.key && p.model === "v2").sort((a, b) => b.reward - a.reward).slice(0, 3).map((p) => pieceTrack(p));
-  const order = ["bhupali", "yaman", "malkauns", "deshkar"];
+  const order = data.allRagas.map((r) => r.key);
   const next = data.allRagas.find((r) => r.key === order[(order.indexOf(raga.key) + 1) % order.length])!;
   const tap = async (pc: number) => {
     const eng = getEngine();
@@ -62,12 +72,12 @@ export default function RagaPage() {
             <div className="font-deva text-[clamp(32px,4vw,56px)] text-kajal/60">{raga.devanagari}</div>
             <div className="grid grid-cols-3 gap-10 text-[15px]">
               <div><div className="text-kajal/50">sung</div><div className="mt-1 text-[20px]">{raga.time.split(" (")[0]}</div></div>
-              <div><div className="text-kajal/50">mood</div><div className="mt-1 text-[20px]">{ABOUT[raga.key].mood}</div></div>
+              <div><div className="text-kajal/50">mood</div><div className="mt-1 text-[20px]">{ABOUT[raga.key]?.mood ?? raga.rasa}</div></div>
               <div><div className="text-kajal/50">family (thaat)</div><div className="mt-1 text-[20px]">{raga.thaat}</div></div>
             </div>
           </div>
         </div>
-        <Plate p={PAINTINGS[raga.key]} tone="paper" className="w-[min(80vw,340px)] -rotate-1" />
+        {PAINTINGS[raga.key] && <Plate p={PAINTINGS[raga.key]} tone="paper" className="w-[min(80vw,340px)] -rotate-1" />}
         </div>
       </section>
       <FloralBand />
@@ -88,7 +98,7 @@ export default function RagaPage() {
                 );
               })}
             </div>
-            <div className="mt-10 space-y-4 text-[18px] leading-[1.65] text-sepia">{ABOUT[raga.key].text.map((t) => <p key={t}>{t}</p>)}</div>
+            <div className="mt-10 space-y-4 text-[18px] leading-[1.65] text-sepia">{(ABOUT[raga.key]?.text ?? []).map((t) => <p key={t}>{t}</p>)}</div>
           </Reveal>
           <Reveal delay={0.15}>
             <div className="flex items-baseline justify-between text-[12px] uppercase tracking-[0.24em] text-sepia">

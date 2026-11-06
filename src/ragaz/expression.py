@@ -128,7 +128,10 @@ def summarize(library: dict) -> None:
 
 
 if __name__ == "__main__":
-    lib = build(["bhupali", "yaman", "malkauns"])
+    from ragaz.realprofile import recorded_ragas
+
+    # Built one raga at a time, so new ragas only add entries; the first three are unchanged.
+    lib = build(recorded_ragas())
     LIBRARY.write_text(json.dumps(lib))
     summarize(lib)
     print(f"wrote {LIBRARY} ({LIBRARY.stat().st_size / 1e3:.0f} kB)")

@@ -34,6 +34,9 @@ def distill(
     memory_gb: float = 5,
     seed: int = 0,
     style: str = "v1",
+    bars: int = 8,
+    rhythm: bool = False,
+    variant: str = "hinted",
 ) -> None:
     import mlx.core as mx
     from mlx_lm import batch_generate, load
@@ -51,18 +54,18 @@ def distill(
     kept: list[dict] = []
     for key in ragas:
         raga = get_raga(key)
-        prompts = [chat_prompt(tokenizer, raga, "hinted")] * per_raga
-        texts = batch_generate(model, tokenizer, prompts, max_tokens=120, sampler=sampler, completion_batch_size=batch, prefill_batch_size=min(4, batch)).texts
+        prompts = [chat_prompt(tokenizer, raga, variant, bars, rhythm)] * per_raga
+        texts = batch_generate(model, tokenizer, prompts, max_tokens=120 if bars <= 8 else 320, sampler=sampler, completion_batch_size=batch, prefill_batch_size=min(4, batch)).texts
         mx.clear_cache()
 
         seen, pieces, rewards = set(), [], []
         for text in texts:
             notation = extract(text).strip()
-            reward = verify(notation, raga, style=style).reward * (1 - copy_fraction(notation))
+            reward = verify(notation, raga, style=style, target_bars=bars).reward * (1 - copy_fraction(notation))
             rewards.append(reward)
             # Twins share every note: keep a piece only if it is more itself than its twin.
             twin = TWINS.get(key)
-            if twin and verify(notation, twin, style=style).reward >= reward:
+            if twin and verify(notation, twin, style=style, target_bars=bars).reward >= reward:
                 continue
             if reward >= min_reward and notation not in seen:
                 seen.add(notation)
@@ -71,7 +74,8 @@ def distill(
         pieces = pieces[:max_per_raga]
         kept += pieces
         good = sum(r >= min_reward for r in rewards)
-        print(f"{raga.name:<9} {per_raga} sampled · {good} scored ≥ {min_reward} · {len(pieces)} distinct kept")
+        top = sorted(rewards, reverse=True)
+        print(f"{raga.name:<14} {per_raga} sampled · median {top[len(top) // 2]:.2f}, p90 {top[len(top) // 10]:.2f} · {good} scored ≥ {min_reward} · {len(pieces)} distinct kept", flush=True)
     watchdog.stop()
 
     out.parent.mkdir(parents=True, exist_ok=True)

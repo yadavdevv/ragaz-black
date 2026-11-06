@@ -78,10 +78,10 @@ export function Newest({ data }: { data: Data }) {
       <div className="mx-auto max-w-[1400px] px-6 py-28 sm:px-10">
         <div className="flex flex-wrap items-end justify-between gap-8">
           <Reveal>
-            <div className="flex items-center gap-4"><Folio n={3} /><Rubric>The newest model · v5e</Rubric></div>
+            <div className="flex items-center gap-4"><Folio n={3} /><Rubric>The newest model · {L.label}</Rubric></div>
             <h2 className="mt-6 max-w-[16ch] font-display text-[clamp(46px,6.4vw,104px)] leading-[0.95] text-kajal">Sixteen bars, <span className="italic text-sindoor">and it rises.</span></h2>
             <p className="mt-6 max-w-[50ch] text-[19px] leading-[1.6] text-sepia">
-              The latest model writes twice as long, climbs into the upper octave the way real singers do, and moves in uneven runs and holds instead of a metronome. These are its pieces as recordings, for all four ragas, Deshkar included.
+              The latest model writes twice as long, climbs into the upper octave the way real singers do, and moves in uneven runs and holds instead of a metronome. These are its pieces as recordings, for all {data.allRagas.length} ragas.
             </p>
           </Reveal>
           <div className="flex flex-wrap gap-2 font-sans">
@@ -126,8 +126,8 @@ export function Newest({ data }: { data: Data }) {
             </p>
           </div>
           <div className="space-y-6">
-            <Plate p={PAINTINGS[rk]} tone="paper" className="mx-auto w-[min(70vw,280px)] -rotate-1" />
-            <div className="text-center"><Magnetic href="/listen?model=v5e" cursor="Open">All 64 v5e pieces →</Magnetic></div>
+            {PAINTINGS[rk] && <Plate p={PAINTINGS[rk]} tone="paper" className="mx-auto w-[min(70vw,280px)] -rotate-1" />}
+            <div className="text-center"><Magnetic href={`/listen?model=${L.label}`} cursor="Open">All {L.pieces.length} {L.label} pieces →</Magnetic></div>
           </div>
         </div>
       </div>

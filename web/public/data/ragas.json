@@ -33,6 +33,7 @@
     19,
     22
    ],
+   "season": null,
    "rasa": "devotional, serene",
    "tanpura": "P"
   },
@@ -73,6 +74,7 @@
     18,
     21
    ],
+   "season": null,
    "rasa": "romantic, devotional",
    "tanpura": "P"
   },
@@ -109,6 +111,7 @@
     0,
     3
    ],
+   "season": null,
    "rasa": "meditative, heroic",
    "tanpura": "m"
   }

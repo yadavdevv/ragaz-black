@@ -8,8 +8,7 @@ import { PieceCard } from "@/components/PieceCard";
 import { RiseChars } from "@/components/Text";
 import { pieceTrack, play, tick, useData, useSite } from "@/lib/site";
 
-const MODELS = [
-  { key: "v5e", label: "Newest · v5e", note: "16 bars, four ragas, scored by its own v5 reward" },
+const OLDER = [
   { key: "v2", label: "v2", note: "8 bars, trained against real recordings" },
   { key: "v1", label: "Rules only", note: "trained on our rules alone" },
   { key: "sft", label: "Before RL", note: "fine-tuned on examples, no scoring yet" },
@@ -26,21 +25,25 @@ function Chip({ on, children, onClick }: { on: boolean; children: React.ReactNod
 export default function Listen() {
   const data = useData();
   const [raga, setRaga] = useState("all");
-  const [model, setModel] = useState("v5e");
+  const [model, setModel] = useState<string | null>(null);
   useEffect(() => {
     const m = new URLSearchParams(window.location.search).get("model");
     if (m) setModel(m);
   }, []);
+  const newest = data?.latest.label ?? "v5e";
+  const current = model ?? newest;
+  const MODELS = [{ key: newest, label: `Newest · ${newest}`, note: `16 bars, ${data?.latest.ragas.length ?? 4} ragas, scored by its own ${data?.latest.style ?? "v5"} reward` }, ...OLDER];
   const [sort, setSort] = useState<"best" | "order">("best");
   const tracks = useMemo(() => {
     if (!data) return [];
-    const pool = model === "v5e" ? data.latest.pieces : data.pieces;
-    let ps = pool.filter((p) => p.model === model && (raga === "all" || p.raga === raga));
+    const pool = current === newest ? data.latest.pieces : data.pieces;
+    let ps = pool.filter((p) => p.model === current && (raga === "all" || p.raga === raga));
     if (sort === "best") ps = [...ps].sort((a, b) => b.reward - a.reward);
     return ps.map((p) => pieceTrack(p));
-  }, [data, raga, model, sort]);
+  }, [data, raga, current, newest, sort]);
   if (!data) return null;
-  const m = MODELS.find((x) => x.key === model)!;
+  const m = MODELS.find((x) => x.key === current) ?? MODELS[0];
+  const chips = current === newest ? data.latest.ragas.map((r) => r.key) : data.ragas.map((r) => r.key);
 
   return (
     <main className="min-h-screen bg-transparent">
@@ -57,10 +60,10 @@ export default function Listen() {
           </div>
           <div className="mt-12 flex flex-wrap gap-x-8 gap-y-4 border-t border-rule pt-8">
             <div className="flex flex-wrap gap-2">
-              {["all", "bhupali", "yaman", "malkauns", ...(model === "v5e" ? ["deshkar"] : [])].map((k) => <Chip key={k} on={raga === k} onClick={() => setRaga(k)}>{k === "all" ? "All ragas" : data.allRagas.find((r) => r.key === k)!.name}</Chip>)}
+              {["all", ...chips].map((k) => <Chip key={k} on={raga === k} onClick={() => setRaga(k)}>{k === "all" ? "All ragas" : data.allRagas.find((r) => r.key === k)?.name ?? k}</Chip>)}
             </div>
             <div className="flex flex-wrap gap-2">
-              {MODELS.map((x) => <Chip key={x.key} on={model === x.key} onClick={() => { setModel(x.key); if (x.key !== "v5e" && raga === "deshkar") setRaga("all"); }}>{x.label}</Chip>)}
+              {MODELS.map((x) => <Chip key={x.key} on={current === x.key} onClick={() => { setModel(x.key); if (x.key !== newest && !data.ragas.some((r) => r.key === raga)) setRaga("all"); }}>{x.label}</Chip>)}
             </div>
             <div className="flex gap-2">
               <Chip on={sort === "best"} onClick={() => setSort("best")}>Highest score</Chip>
