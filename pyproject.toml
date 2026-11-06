@@ -27,6 +27,7 @@ mlflow = [
     "mlflow>=3.17.0",
 ]
 voice = [
+    "demucs==4.0.1",
     "torch>=2.14.1",
     "torchcrepe>=0.0.24",
 ]
