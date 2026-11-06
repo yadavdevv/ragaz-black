@@ -38,19 +38,38 @@ def fetch() -> None:
 
 
 def separate() -> None:
-    out = ROOT / "sep"
+    """Demucs htdemucs through its Python API (torchaudio's own save now needs torchcodec): decode
+    with ffmpeg, separate on MPS in 7 s segments, keep the vocals, write a mono 16-bit WAV."""
+    import numpy as np
+    import torch
+    from demucs.apply import apply_model
+    from demucs.pretrained import get_model
+    from scipy.io import wavfile
+
+    vocals = ROOT / "vocals"
+    vocals.mkdir(parents=True, exist_ok=True)
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    model = get_model("htdemucs").to(device).eval()
+    sr = model.samplerate
     for mix in sorted((ROOT / "mix").glob("*.mp3")):
-        target = out / "htdemucs" / mix.stem / "vocals.wav"
+        target = vocals / f"{mix.stem}.wav"
         if target.exists():
             continue
-        print(f"separating {mix.name}", flush=True)
-        subprocess.run([sys.executable, "-m", "demucs", "-n", "htdemucs", "--two-stems", "vocals", "-d", "mps", "-j", "1", "--segment", "7", "-o", str(out), str(mix)], check=True)
-    vocals = ROOT / "vocals"
-    vocals.mkdir(exist_ok=True)
-    for v in sorted((out / "htdemucs").glob("*/vocals.wav")):
-        link = vocals / f"{v.parent.name}.wav"
-        if not link.exists():
-            link.symlink_to(v.resolve())
+        raw = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", str(mix), "-ac", "2", "-ar", str(sr), "-f", "f32le", "-"], check=True, capture_output=True).stdout
+        wav = torch.from_numpy(np.frombuffer(raw, dtype=np.float32).copy().reshape(-1, 2).T)
+        ref = wav.mean(0)
+        wav = (wav - ref.mean()) / (ref.std() + 1e-8)
+        with torch.no_grad():
+            out = apply_model(model, wav[None], device=device, segment=7, split=True, overlap=0.25, progress=False)[0]
+        voc = out[model.sources.index("vocals")] * (ref.std() + 1e-8) + ref.mean()
+        mono = voc.mean(0).cpu().numpy()
+        mono = mono / (np.abs(mono).max() + 1e-9) * 0.9
+        tmp = target.with_suffix(".part.wav")
+        wavfile.write(tmp, sr, (mono * 32767).astype(np.int16))
+        tmp.rename(target)
+        print(f"{mix.name}: {len(mono) / sr / 60:.1f} min of vocals", flush=True)
+        if device == "mps":
+            torch.mps.empty_cache()
     print(f"{len(list(vocals.glob('*.wav')))} vocal tracks in {vocals}")
 
 
