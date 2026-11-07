@@ -13,13 +13,22 @@ import { RiseChars } from "@/components/Text";
 import { getEngine } from "@/lib/audio";
 import { ragaOfHour } from "@/lib/music";
 import { tick, useData } from "@/lib/site";
-import { LAYERS, type Layers, PRESETS, type Piece, arrange, lengthInBeats, pickPhrase, produce, renderWav, themeFor } from "@/lib/studio";
+import { type Controls, LAYERS, type Layers, PRESETS, type Piece, arrange, defaultControls, lengthInBeats, pickPhrase, produce, renderWav, themeFor, withControls } from "@/lib/studio";
 
 const SA = 220;
 const LAYER_NAMES: Record<(typeof LAYERS)[number], string> = {
-  voice: "Voice", double: "Double", ghost: "Ghost (octave down)", bansuri: "Bansuri", drone: "Tanpura", pad: "Pad", bass: "Sub bass",
-  kick: "Kick + pump", clap: "Clap / snare", hats: "Hats", tabla: "Tabla", texture: "Crackle / rain", riser: "Riser",
+  voice: "Voice", double: "Double", ghost: "Ghost (octave down)", bansuri: "Bansuri", keys: "Keys", pluck: "Sitar / santoor",
+  drone: "Tanpura", pad: "Pad", bass: "Bass", kick: "Kick + pump", snare: "Snare / clap", hats: "Hats / shaker", perc: "Rim", tabla: "Tabla",
+  texture: "Vinyl / rain", riser: "Riser",
 };
+const KNOBS: { key: keyof Controls; label: string; min: number; max: number; step: number; show: (v: number) => string }[] = [
+  { key: "energy", label: "Energy", min: 0, max: 1, step: 0.01, show: (v) => `${Math.round(v * 100)}%` },
+  { key: "space", label: "Space", min: 0, max: 1, step: 0.01, show: (v) => `${Math.round(v * 100)}%` },
+  { key: "warmth", label: "Warmth", min: 0, max: 1, step: 0.01, show: (v) => `${Math.round(v * 100)}%` },
+  { key: "swing", label: "Swing", min: 0.5, max: 0.7, step: 0.01, show: (v) => (v <= 0.505 ? "straight" : `${Math.round((v - 0.5) * 500)}%`) },
+  { key: "tempo", label: "Tempo", min: 80, max: 130, step: 1, show: (v) => `${v} bpm` },
+  { key: "voice", label: "Voice", min: 0.3, max: 1.3, step: 0.01, show: (v) => `${Math.round(v * 100)}%` },
+];
 
 export default function Studio() {
   const data = useData();
@@ -27,6 +36,7 @@ export default function Studio() {
   const [pick, setPick] = useState(0);
   const [presetKey, setPresetKey] = useState(PRESETS[0].key);
   const [layers, setLayers] = useState<Layers>({});
+  const [controls, setControls] = useState<Controls | null>(null);
   const [playing, setPlaying] = useState(false);
   const [beatNow, setBeatNow] = useState<number | null>(null);
   const [rendering, setRendering] = useState(false);
@@ -50,7 +60,10 @@ export default function Studio() {
   const b = bandishes[pick];
   useEffect(() => { if (b) setPresetKey(themeFor(b.raga).key); }, [b]);
   const raga = ragas.find((r) => r.key === b?.raga);
-  const preset = PRESETS.find((p) => p.key === presetKey)!;
+  const style = PRESETS.find((p) => p.key === presetKey)!;
+  // Each style starts from its own defaults; the knobs then shape it.
+  useEffect(() => setControls(defaultControls(style)), [style]);
+  const preset = controls ? withControls(style, controls) : style;
   // The wordless parts (interlude, coda): phrases from the newest composer's pieces in this raga,
   // low-octave first, the coda coming home to Sa.
   const build = (i: number): Piece | null => {
@@ -92,7 +105,7 @@ export default function Studio() {
     loop();
   };
   // Changing what plays restarts it.
-  useEffect(() => { if (playing) { stop(); } }, [pick, presetKey, layers]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (playing) { stop(); } }, [pick, presetKey, layers, controls]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const download = async () => {
     if (!piece || !raga || !b) return;
@@ -132,7 +145,7 @@ export default function Studio() {
           <div className="space-y-6">
             <div className="leaf-card border border-rule p-6">
               <div className="text-[12px] uppercase tracking-[0.24em] text-sepia">1 · The sound</div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {PRESETS.map((p) => (
                   <button key={p.key} onClick={() => { tick(); setPresetKey(p.key); }}
                     className={`rounded-xl border p-4 text-left transition-colors ${p.key === presetKey ? "border-sindoor bg-paper2/60" : "border-rule hover:border-sindoor/60"}`}>
@@ -142,6 +155,16 @@ export default function Studio() {
                   </button>
                 ))}
               </div>
+              {controls && (
+                <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
+                  {KNOBS.map((k) => (
+                    <label key={k.key} className="block text-[13px]">
+                      <span className="flex justify-between text-kajal/70"><span>{k.label}</span><span className="tabular-nums">{k.show(controls[k.key])}</span></span>
+                      <input type="range" min={k.min} max={k.max} step={k.step} value={controls[k.key]} onChange={(e) => setControls({ ...controls, [k.key]: Number(e.target.value) })} className="mt-1 w-full accent-sindoor" />
+                    </label>
+                  ))}
+                </div>
+              )}
               <div className="mt-5 flex flex-wrap gap-2">
                 {LAYERS.map((k) => {
                   const on = layers[k] !== false;
