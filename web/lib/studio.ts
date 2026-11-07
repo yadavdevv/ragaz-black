@@ -7,8 +7,13 @@
 // Works on any BaseAudioContext: live in the page, or offline to a WAV.
 
 import { Voice, tanpuraPluck, voiceWave } from "./audio";
-import { type Note, type Raga, swaraHz } from "./music";
+import { clap, epiano, hat, kick, logDrum, pluck, rim, shaker, snare, supersaw } from "./kit";
+import { type Note, RATIOS, type Raga, swaraHz } from "./music";
 import { type Lyric, phone } from "./phones";
+
+/** Drum patterns, 16 steps (sixteenths) per bar, repeating; one or two bars long.
+ *  x = hit, o = ghost (soft), O = accent (an open hat, a hard hit), . = rest. */
+export type Groove = { kick?: string; snare?: string; clap?: string; hat?: string; shaker?: string; rim?: string; log?: string; rolls?: boolean };
 
 export type Preset = {
   key: string;
@@ -18,48 +23,104 @@ export type Preset = {
   reverb: { seconds: number; send: number };
   delay: { send: number; throw: number; feedback: number };
   pump: number; // how far the bed ducks on each kick (0 = none)
-  kick: number[]; // beats (fractions allowed) of a 16-beat cycle
-  clap: { beats: number[]; level: number };
-  hats: { level: number; swing: number; step: number; rolls: boolean };
+  groove: Groove;
+  swing: number; // where the off-sixteenth falls: 0.5 straight, 0.6 lazy
+  human: number; // timing scatter (ms) and velocity scatter, for hands not machines
   tabla: number;
   pad: number;
-  bass: { level: number; kind: "sub" | "808" };
+  keys: { kind: "none" | "epiano" | "supersaw" | "stabs"; level: number };
+  pluck: { kind: "none" | "sitar" | "santoor"; level: number };
+  bass: { level: number; kind: "sub" | "808" | "log" | "arp" | "offbeat" };
   crackle: number;
   rain: number;
   top: number; // master low-pass (Hz)
   double: boolean; // a detuned, delayed second voice, panned
   ghost: boolean; // the melody an octave below, dark and wet
   drop: boolean; // sthayi builds (filter opens), interlude breaks down, a beat of silence, the antara drops
+  gatedSnare?: boolean; // the 80s snare: a big room cut short
+  energy?: number; // macro: drums' level and density (0..1, default 0.75)
+  voice?: number; // macro: voice level (default 0.9)
 };
 
-const base = { reverb: { seconds: 2.2, send: 0.22 }, delay: { send: 0.08, throw: 0.4, feedback: 0.35 }, pump: 0, kick: [], clap: { beats: [], level: 0 }, hats: { level: 0, swing: 0.5, step: 0.5, rolls: false }, tabla: 0, pad: 0.06, bass: { level: 0, kind: "sub" as const }, crackle: 0, rain: 0, top: 10000, double: false, ghost: false, drop: false };
+const base: Omit<Preset, "key" | "name" | "blurb" | "tempo"> = {
+  reverb: { seconds: 2.2, send: 0.22 }, delay: { send: 0.08, throw: 0.4, feedback: 0.35 }, pump: 0, groove: {}, swing: 0.5, human: 6,
+  tabla: 0, pad: 0, keys: { kind: "none", level: 0 }, pluck: { kind: "none", level: 0 }, bass: { level: 0, kind: "sub" },
+  crackle: 0, rain: 0, top: 11000, double: false, ghost: false, drop: false,
+};
 
 export const PRESETS: Preset[] = [
-  { ...base, key: "calm", name: "Calm", blurb: "Dawn and stillness: no drums, a long room, pad swells, the voice doubled and far away.", tempo: 96,
-    reverb: { seconds: 4.5, send: 0.42 }, delay: { send: 0.12, throw: 0.4, feedback: 0.45 }, pad: 0.11, bass: { level: 0.2, kind: "sub" }, crackle: 0.01, top: 11000, double: true, ghost: true },
-  { ...base, key: "tape", name: "Tape", blurb: "Lo-fi and warm: swung hats, a soft kick the whole bed breathes with, crackle, a doubled voice.", tempo: 104,
-    pump: 0.45, kick: [0, 8], hats: { level: 0.05, swing: 0.6, step: 0.5, rolls: false }, tabla: 0.3, bass: { level: 0.45, kind: "sub" }, crackle: 0.02, top: 9000, double: true },
-  { ...base, key: "rain", name: "Rain", blurb: "Dub in the monsoon: rain under everything, a deep sub, long delay throws at line ends, a ghost voice an octave down.", tempo: 100,
-    reverb: { seconds: 3.4, send: 0.3 }, delay: { send: 0.1, throw: 0.7, feedback: 0.5 }, pump: 0.3, kick: [0, 10], hats: { level: 0.03, swing: 0.55, step: 0.25, rolls: false }, tabla: 0.18, pad: 0.05, bass: { level: 0.8, kind: "sub" }, rain: 0.05, top: 7500, ghost: true },
-  { ...base, key: "drop", name: "Drop", blurb: "Build and drop: the sthayi builds as the filter opens, the interlude breaks down, a riser and a beat of silence, then the antara drops: four on the floor, claps, sub.", tempo: 112,
-    reverb: { seconds: 2.6, send: 0.25 }, pump: 0.6, kick: Array.from({ length: 16 }, (_, i) => i), clap: { beats: [1, 3, 5, 7, 9, 11, 13, 15], level: 0.35 }, hats: { level: 0.06, swing: 0.5, step: 0.5, rolls: false }, tabla: 0.15, pad: 0.07, bass: { level: 0.7, kind: "sub" }, top: 12000, double: true, drop: true },
-  { ...base, key: "night", name: "Night", blurb: "Late and heavy: a half-time trap beat, an 808 that slides between Sa and its fifth, hats that roll, a ghost voice.", tempo: 104,
-    reverb: { seconds: 2.8, send: 0.25 }, pump: 0.35, kick: [0, 2.75, 7.5, 8, 10.75, 14], clap: { beats: [2, 6, 10, 14], level: 0.3 }, hats: { level: 0.04, swing: 0.5, step: 0.25, rolls: true }, tabla: 0.12, bass: { level: 0.8, kind: "808" }, crackle: 0.012, top: 9000, ghost: true },
+  { ...base, key: "lofi", name: "Lo-fi", tempo: 92, blurb: "Lo-fi hip hop: a lazy boom-bap swing, a warm FM electric piano on the raga's chords, vinyl dust, a doubled voice.",
+    pump: 0.3, swing: 0.62, human: 9,
+    groove: { kick: "x......x..x.....x.......x.x.....", snare: "....x..o....x.......x.......x..o", hat: "x.x.x.x.x.x.x.xOx.x.x.x.x.x.x.x." },
+    tabla: 0.15, keys: { kind: "epiano", level: 1 }, bass: { level: 0.4, kind: "sub" }, crackle: 0.022, top: 9000, double: true },
+  { ...base, key: "amapiano", name: "Amapiano", tempo: 112, blurb: "Amapiano: a soft four-on-the-floor, shakers in sixteenths, rimshots, and the log drum's knocking bassline on the raga's notes.",
+    pump: 0.35, swing: 0.56, human: 5,
+    groove: { kick: "x...x...x...x...", shaker: "xoxoxoxoxoxoxoxo", rim: "..x...x...x..x.x", log: "x..x..x...x.x...", clap: "....x.......x..." },
+    keys: { kind: "epiano", level: 0.7 }, pad: 0.04, bass: { level: 0.75, kind: "log" }, top: 16000 },
+  { ...base, key: "synthwave", name: "Synthwave", tempo: 104, blurb: "Synthwave: the 80s, a gated-reverb snare, an octave-jumping bass in sixteenths, supersaw chords, everything wide.",
+    reverb: { seconds: 3, send: 0.28 }, pump: 0.3, swing: 0.5, human: 2, gatedSnare: true,
+    groove: { kick: "x.......x.......", snare: "....x.......x...", hat: "..x...x...x...x." },
+    keys: { kind: "supersaw", level: 0.8 }, bass: { level: 0.5, kind: "arp" }, top: 16000, double: true },
+  { ...base, key: "drop", name: "Drop", tempo: 116, blurb: "Build and drop: the sthayi builds as the filter opens, the interlude breaks down, a riser and a beat of silence, then the antara drops: four on the floor, claps, house bass, chord stabs.",
+    reverb: { seconds: 2.6, send: 0.25 }, pump: 0.6, swing: 0.5, human: 2, drop: true,
+    groove: { kick: "x...x...x...x...", clap: "....x.......x...", hat: "..O...O...O...O." },
+    tabla: 0.12, pad: 0.05, keys: { kind: "stabs", level: 0.9 }, bass: { level: 0.6, kind: "offbeat" }, top: 16000, double: true },
+  { ...base, key: "night", name: "Night", tempo: 104, blurb: "Late and heavy: a half-time trap beat, an 808 that slides between the raga's roots, hats that roll, a sitar answering in the gaps.",
+    reverb: { seconds: 2.8, send: 0.25 }, pump: 0.35, swing: 0.5, human: 3,
+    groove: { kick: "x.....x...x..x..x......x.x......", snare: "........x...............x.......", hat: "xxxxxxxxxxxxxxxx", rolls: true },
+    tabla: 0.1, pad: 0.05, pluck: { kind: "sitar", level: 0.8 }, bass: { level: 0.55, kind: "808" }, crackle: 0.01, top: 14000, ghost: true },
+  { ...base, key: "rain", name: "Rain", tempo: 98, blurb: "Dub in the monsoon: rain under everything, rimshots thrown into the delay, a deep sub, a ghost voice an octave down.",
+    reverb: { seconds: 3.4, send: 0.3 }, delay: { send: 0.14, throw: 0.7, feedback: 0.5 }, pump: 0.3, swing: 0.55, human: 6,
+    groove: { kick: "x.........x.....", rim: "....x.......x...", hat: "..x...x...x...x." },
+    tabla: 0.18, pad: 0.05, pluck: { kind: "sitar", level: 0.5 }, bass: { level: 0.55, kind: "sub" }, rain: 0.05, top: 12000, ghost: true },
+  { ...base, key: "calm", name: "Calm", tempo: 96, blurb: "Dawn and stillness: no drums, santoor strings rippling through the raga's chords, a long room, the voice doubled and far away.",
+    reverb: { seconds: 4.5, send: 0.42 }, delay: { send: 0.12, throw: 0.4, feedback: 0.45 },
+    pad: 0.09, pluck: { kind: "santoor", level: 0.7 }, bass: { level: 0.2, kind: "sub" }, crackle: 0.008, top: 15000, double: true, ghost: true },
 ];
 
-/** Each raga's default theme, by its hour and mood (any theme can still be chosen). */
+/** Each raga's default style, by its hour and mood (any style can still be chosen). */
 export const THEME_OF: Record<string, string> = {
   bhairav: "calm", todi: "calm", deshkar: "calm",
-  shuddh_sarang: "tape", madhuvanti: "tape", yaman: "tape", bhupali: "tape", bihag: "tape",
+  shuddh_sarang: "amapiano", madhuvanti: "lofi", yaman: "lofi", bhupali: "synthwave", bihag: "lofi",
   marwa: "night", darbari: "night", malkauns: "night",
   miyan_malhar: "rain", basant: "drop",
 };
-export const themeFor = (raga: string) => PRESETS.find((p) => p.key === (THEME_OF[raga] ?? "tape"))!;
+export const themeFor = (raga: string) => PRESETS.find((p) => p.key === (THEME_OF[raga] ?? "lofi"))!;
+
+/** The macro knobs on a style: energy, space, warmth, swing, tempo, voice. */
+export type Controls = { energy: number; space: number; warmth: number; swing: number; tempo: number; voice: number };
+// The voice leads but sits in the track: soloed, it was as loud as the whole mix (keys 11 dB and
+// hats 30 dB under it). Defaults now put keys ~5 dB and hats ~14 dB below the voice.
+export const defaultControls = (p: Preset): Controls => ({ energy: 0.75, space: 0.5, warmth: 0.5, swing: p.swing, tempo: p.tempo, voice: 0.6 });
+export function withControls(p: Preset, c: Controls): Preset {
+  return {
+    ...p,
+    tempo: c.tempo,
+    swing: c.swing,
+    reverb: { ...p.reverb, send: p.reverb.send * (0.4 + 1.2 * c.space) },
+    delay: { ...p.delay, send: p.delay.send * (0.4 + 1.2 * c.space) },
+    top: p.top * 2 ** ((0.5 - c.warmth) * 1.6), // warmer = darker
+    energy: c.energy,
+    voice: c.voice,
+  };
+}
+
+/** The raga's chords: its own notes stacked in alternate steps (no note outside the raga), on
+ *  the home degree, a second and a third, as semitones above Sa (an octave and more). */
+export function ragaChords(swaras: string[]): number[][] {
+  const order = "SrRgGmMPdDnN";
+  const scale = [...swaras].sort((a, b) => order.indexOf(a) - order.indexOf(b)).map((s) => order.indexOf(s));
+  const n = scale.length;
+  const at = (i: number) => scale[i % n] + 12 * Math.floor(i / n);
+  const chord = (deg: number) => (n >= 6 ? [0, 2, 4, 6] : [0, 2, 4]).map((k) => at(deg + k));
+  const second = n >= 6 ? 3 : 2, third = n >= 6 ? 4 : 3;
+  return [chord(0), chord(0), chord(second), chord(third)]; // one chord a bar: home, home, second, third
+}
 
 /** A bandish (notes, words) plus two wordless phrases in its raga: an interlude between sthayi and
  *  antara, and a coda after the last words (aakar, with the bansuri). */
 export type Piece = { notes: Note[]; lyrics?: Lyric[]; beats: number; raga: Raga; saHz: number; interlude?: Note[]; coda?: Note[] };
-export const LAYERS = ["voice", "double", "ghost", "bansuri", "drone", "pad", "bass", "kick", "clap", "hats", "tabla", "texture", "riser"] as const;
+export const LAYERS = ["voice", "double", "ghost", "bansuri", "keys", "pluck", "drone", "pad", "bass", "kick", "snare", "hats", "perc", "tabla", "texture", "riser"] as const;
 export type Layers = Partial<Record<(typeof LAYERS)[number], boolean>>;
 
 const OUTRO = 2; // a short tail: the track ends with the music, not a drone
@@ -221,16 +282,19 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
   // ---------------------------------------------------------------- master and sends
   const masterIn = ctx.createGain();
   const shelf = ctx.createBiquadFilter();
-  shelf.type = "highshelf"; shelf.frequency.value = 7000; shelf.gain.value = -3;
+  // Air on top (lo-fi stays dusty): the first mixes had almost nothing above 4 kHz.
+  shelf.type = "highshelf"; shelf.frequency.value = preset.key === "lofi" ? 7000 : 10000; shelf.gain.value = preset.key === "lofi" ? -3 : 3;
   const top = ctx.createBiquadFilter();
   top.type = "lowpass"; top.frequency.value = preset.top; top.Q.value = 0.5;
   const comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = -16; comp.ratio.value = 3; comp.attack.value = 0.006; comp.release.value = 0.25; comp.knee.value = 8;
-  const clip = softClip(ctx, 1.3);
+  // Smoother than before (it was squashed, ~-9 dB RMS): gentler compression, less clipping, more air.
+  comp.threshold.value = -20; comp.ratio.value = 2; comp.attack.value = 0.012; comp.release.value = 0.3; comp.knee.value = 12;
+  const clip = softClip(ctx, 1.05);
+  const rumble = ctx.createBiquadFilter(); rumble.type = "highpass"; rumble.frequency.value = 28;
   const master = ctx.createGain();
   master.gain.setValueAtTime(0, t0);
-  master.gain.linearRampToValueAtTime(0.85, t0 + 0.05); // everything together from the first beat
-  masterIn.connect(shelf).connect(top).connect(comp).connect(clip).connect(master).connect(dest);
+  master.gain.linearRampToValueAtTime(0.7, t0 + 0.05); // everything together from the first beat (headroom: ~-12 dB RMS)
+  masterIn.connect(rumble).connect(shelf).connect(top).connect(comp).connect(clip).connect(master).connect(dest);
   if (preset.drop) {
     // The build: the sthayi opens up as the filter rises; the breakdown dips; the drop is wide open.
     top.frequency.setValueAtTime(700, P(0));
@@ -240,7 +304,7 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
   }
   top.frequency.setValueAtTime(preset.top, P(arr.beats - 2));
   top.frequency.exponentialRampToValueAtTime(900, P(total) + 0.5);
-  master.gain.setValueAtTime(0.85, P(total - 2));
+  master.gain.setValueAtTime(0.7, P(total - 2));
   master.gain.linearRampToValueAtTime(0, end);
 
   // The bed: everything except kick and clap goes through the pump.
@@ -296,7 +360,12 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
     sources.push(v.osc, v.lfo, v.wobble, v.noise);
   };
   if (on("voice")) {
-    const vocal = bus(0.9, 0, preset.reverb.send, preset.delay.send);
+    const vocal = bus(preset.voice ?? 0.6, 0, preset.reverb.send, preset.delay.send);
+    // A vocal chain: a compressor evens it out, a dip at 5 kHz takes the edge off.
+    const vc = ctx.createDynamicsCompressor(); vc.threshold.value = -22; vc.ratio.value = 3; vc.attack.value = 0.008; vc.release.value = 0.2;
+    const ve = ctx.createBiquadFilter(); ve.type = "peaking"; ve.frequency.value = 5000; ve.Q.value = 1.2; ve.gain.value = -3;
+    const vin = ctx.createGain();
+    vin.connect(vc).connect(ve).connect(vocal);
     if (lyrics) {
       const throwSend = ctx.createGain();
       throwSend.gain.value = 0;
@@ -311,7 +380,7 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
         reverbOut.gain.setTargetAtTime(1, P(l.t) + 0.15, 0.5); // and blooms in the gaps
       });
     }
-    sing(vocal, arr.notes);
+    sing(vin, arr.notes);
     if (preset.double && on("double")) {
       sing(bus(0.3, -0.55, preset.reverb.send * 1.4), arr.notes, 1.0045, 0.014, 0.9);
       sing(bus(0.25, 0.55, preset.reverb.send * 1.4), arr.notes, 0.9965, 0.022, 0.9);
@@ -384,109 +453,161 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
     lfo.start(P(0)); lfo.stop(end);
   }
 
-  // ---------------------------------------------------------------- rhythm
-  const cycles = Math.ceil(arr.beats / 16);
-  const kicks: number[] = [];
-  if (preset.kick.length && on("kick")) {
-    for (let c = 0; c < cycles; c++) for (const k of preset.kick) {
-      const b = c * 16 + k;
-      if (b >= arr.beats || !drums(b) || inBreakdown(b)) continue;
-      kicks.push(b);
-      const t = P(b);
-      const o = keep(ctx.createOscillator());
-      o.frequency.setValueAtTime(preset.bass.kind === "808" ? 110 : 140, t); o.frequency.exponentialRampToValueAtTime(46, t + 0.12);
-      const e = ctx.createGain();
-      e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.9, t + 0.004); e.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
-      o.connect(e).connect(drumBus);
-      o.start(t); o.stop(t + 0.45);
+  // ---------------------------------------------------------------- chords, keys and strings
+  const energy = preset.energy ?? 0.75;
+  const chords = ragaChords(piece.raga.swaras); // one per bar, cycling every four bars
+  const semiHz = (semi: number, base = sa) => base * 2 ** (Math.floor(semi / 12)) * RATIOS[((semi % 12) + 12) % 12];
+  const chordAt = (b: number) => chords[Math.floor(b / 4) % 4];
+  const bars = Math.ceil(arr.beats / 4);
+  const playing = (b: number) => b < arr.beats && !inBreakdown(b);
+  if (preset.keys.kind !== "none" && on("keys")) {
+    // Two buses, left and right: chord notes alternate between them, so the keys sit wide around the voice.
+    const keysL = bus(0.75 * preset.keys.level, -0.5, 0.35, 0.06), keysR = bus(0.75 * preset.keys.level, 0.5, 0.35, 0.06);
+    const side = (i: number) => (i % 2 ? keysR : keysL);
+    const keys = keysL;
+    for (let bar = 0; bar < bars; bar++) {
+      const b = bar * 4;
+      if (!playing(b)) continue;
+      const tones = chordAt(b);
+      if (preset.keys.kind === "epiano") {
+        // A chord on the bar, left hand an octave down, and a softer re-strike on the "and" of three.
+        tones.forEach((semi, i) => epiano(ctx, side(i), P(b) + i * 0.012, semiHz(semi, sa / 2), 3.4 * beat, 0.9 - 0.08 * i, keep));
+        epiano(ctx, keys, P(b), semiHz(tones[0], sa / 4), 3.6 * beat, 0.8, keep);
+        if (bar % 2) tones.slice(1).forEach((semi, i) => epiano(ctx, side(i + 1), P(b + 2.5), semiHz(semi, sa / 2), 1.2 * beat, 0.45, keep));
+      } else if (preset.keys.kind === "supersaw") {
+        tones.forEach((semi, i) => supersaw(ctx, side(i), P(b), semiHz(semi, sa / 2), 4 * beat - 0.05, 0.9, keep, 2600));
+      } else if (drums(b)) {
+        // House stabs on the offbeats (only once the drop has landed).
+        for (const off of [0.5, 1.5, 2.5, 3.5]) tones.forEach((semi, i) => supersaw(ctx, side(i), P(b + off), semiHz(semi, sa / 2), 0.22 * beat, 0.8, keep, 3400));
+      }
     }
   }
+  if (preset.pluck.kind !== "none" && on("pluck")) {
+    const stringsL = bus(0.4 * preset.pluck.level, -0.45, 0.4, 0.1), stringsR = bus(0.4 * preset.pluck.level, 0.35, 0.4, 0.1);
+    let alt = 0; // strings alternate left and right
+    const kind = preset.pluck.kind;
+    for (let bar = 0; bar < bars; bar++) {
+      const b = bar * 4;
+      if (b >= arr.beats) continue;
+      const tones = chordAt(b);
+      const wordless = arr.sections.some(([n, st, len]) => ["interlude", "taan", "coda"].includes(n) && b >= st && b < st + len);
+      if (kind === "santoor") {
+        // Santoor ripples: the chord's notes up and back in eighths, all through.
+        const run = [...tones, tones[0] + 12, ...tones.slice(1).reverse()];
+        for (let k = 0; k < 8; k++) pluck(ctx, alt++ % 2 ? stringsR : stringsL, P(b + k / 2), semiHz(run[k % run.length]), 0.55 + 0.1 * (k % 2 ? 0 : 1), "santoor", keep);
+      } else if (wordless || bar % 4 === 0) {
+        // Sitar: a stroke on sam, and a riff of the chord's notes in the wordless parts.
+        if (wordless) [0, 0.75, 1.5, 2, 3].forEach((off, k) => pluck(ctx, alt++ % 2 ? stringsR : stringsL, P(b + off), semiHz(tones[k % tones.length] + (k === 4 ? 12 : 0)), 0.8, "sitar", keep));
+        else pluck(ctx, alt++ % 2 ? stringsR : stringsL, P(b), semiHz(tones[0]), 0.9, "sitar", keep);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- rhythm: patterns
+  const G = preset.groove;
+  const r = (() => { let x = 12345; return () => ((x = (x * 16807) % 2147483647) / 2147483647); })();
+  const kicks: number[] = [];
+  const drumGlue = ctx.createDynamicsCompressor(); // drum bus glue
+  drumGlue.threshold.value = -14; drumGlue.ratio.value = 4; drumGlue.attack.value = 0.003; drumGlue.release.value = 0.12;
+  drumGlue.connect(drumBus);
+  const drumLevel = 0.55 + 0.6 * energy;
+  const kit = ctx.createGain(); kit.gain.value = drumLevel; kit.connect(drumGlue);
+  const room = ctx.createGain(); room.gain.value = preset.gatedSnare ? 0.9 : 0.25; room.connect(reverbIn);
+  if (preset.gatedSnare) { // the 80s gate: the room is cut a moment after each snare
+    room.gain.value = 0;
+  }
+  const lane = (pattern: string | undefined, layer: (typeof LAYERS)[number], hit: (t: number, v: number, ch: string, b: number) => void) => {
+    if (!pattern || !on(layer)) return;
+    const len = pattern.length;
+    for (let bar = 0; bar < bars; bar++) for (let k = 0; k < 16; k++) {
+      const ch = pattern[(bar * 16 + k) % len];
+      if (ch === ".") continue;
+      if (ch === "o" && energy < 0.45) continue; // fewer ghosts when the energy is down
+      const b = bar * 4 + k / 4 + (k % 2 ? (preset.swing - 0.5) * 0.5 : 0);
+      if (b >= arr.beats || !drums(b) || inBreakdown(b)) continue;
+      const jitter = ((r() - 0.5) * 2 * preset.human) / 1000;
+      const v = (ch === "o" ? 0.35 : ch === "O" ? 1 : 0.85) * (1 - 0.15 * r() * (preset.human > 4 ? 1 : 0.4));
+      hit(P(b) + jitter, v, ch, b);
+    }
+  };
+  lane(G.kick, "kick", (t, v, _ch, b) => { kick(ctx, kit, t, v, keep, noise); kicks.push(b); });
+  lane(G.snare, "snare", (t, v) => {
+    snare(ctx, kit, t, v, keep, noise, room);
+    if (preset.gatedSnare) { room.gain.setValueAtTime(0.9, t); room.gain.setValueAtTime(0.9, t + 0.22); room.gain.linearRampToValueAtTime(0, t + 0.26); }
+  });
+  lane(G.clap, "snare", (t, v) => clap(ctx, kit, t, v * 0.9, keep, noise, room));
+  const hatOut = bus(12 * drumLevel, 0.3);
+  lane(G.hat, "hats", (t, v, ch, b) => {
+    if (energy < 0.4 && Math.round(b * 4) % 2) return; // sparser hats at low energy
+    if (G.rolls && Math.floor(b) % 8 === 7) { // a roll on the last beat of every second bar
+      if (Math.abs(b - Math.floor(b)) < 0.01) for (let k = 0; k < 8; k++) hat(ctx, hatOut, t + (k * beat) / 8, 0.35 + 0.08 * k, keep);
+      return;
+    }
+    hat(ctx, hatOut, t, v, keep, ch === "O");
+  });
+  lane(G.shaker, "hats", (t, v) => shaker(ctx, hatOut, t, v, keep, noise));
+  // Rimshots on their own bus: in Rain they're thrown into the delay, the dub way.
+  const rims = ctx.createGain(); rims.connect(kit);
+  if (preset.key === "rain") { const send = ctx.createGain(); send.gain.value = 0.5; rims.connect(send).connect(delayIn); }
+  lane(G.rim, "perc", (t, v) => rim(ctx, rims, t, v, keep));
   // Sidechain pump: the bed ducks on every kick and breathes back.
   if (preset.pump) for (const b of kicks) {
-    pump.gain.setTargetAtTime(1 - preset.pump, P(b), 0.004);
+    pump.gain.setTargetAtTime(1 - preset.pump * (0.6 + 0.4 * energy), P(b), 0.004);
     pump.gain.setTargetAtTime(1, P(b) + 0.04, 0.13);
   }
-  if (preset.clap.level && on("clap")) {
-    const clapOut = ctx.createGain(); clapOut.gain.value = preset.clap.level;
-    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 1400; bp.Q.value = 0.9;
-    const rs = ctx.createGain(); rs.gain.value = 0.25;
-    bp.connect(clapOut).connect(drumBus);
-    clapOut.connect(rs).connect(reverbIn);
-    for (let c = 0; c < cycles; c++) for (const k of preset.clap.beats) {
-      const b = c * 16 + k;
-      if (b >= arr.beats || !drums(b) || inBreakdown(b)) continue;
-      const t = P(b);
-      for (const [off, a] of [[0, 0.7], [0.011, 0.9], [0.022, 1]] as const) { // three quick hands
-        const s = keep(ctx.createBufferSource()); s.buffer = noise;
-        const e = ctx.createGain();
-        e.gain.setValueAtTime(0, t + off); e.gain.linearRampToValueAtTime(a, t + off + 0.002); e.gain.exponentialRampToValueAtTime(0.001, t + off + (off === 0.022 ? 0.16 : 0.01));
-        s.connect(e).connect(bp);
-        s.start(t + off, ((b + off) * 0.29) % 1.5); s.stop(t + off + 0.2);
-      }
-    }
-  }
-  if (preset.hats.level && on("hats")) {
-    const hats = bus(preset.hats.level, 0.3);
-    const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 7000;
-    hp.connect(hats);
-    const hit = (b: number, accent: number, len = 0.045) => {
-      const t = P(b);
-      const s = keep(ctx.createBufferSource()); s.buffer = noise;
-      const e = ctx.createGain();
-      e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(accent, t + 0.002); e.gain.exponentialRampToValueAtTime(0.001, t + len);
-      s.connect(e).connect(hp);
-      s.start(t, (b * 0.37) % 1.5); s.stop(t + len + 0.02);
-    };
-    for (let b = 0; b < arr.beats; b += preset.hats.step) {
-      if (inBreakdown(b)) continue;
-      const pos = b % 1;
-      // A roll on the last beat of every second bar: thirty-seconds, rising.
-      if (preset.hats.rolls && b % 8 === 7) {
-        if (pos === 0) for (let k = 0; k < 8; k++) hit(b + k / 8, 0.35 + 0.08 * k, 0.03);
-        continue;
-      }
-      const swung = pos === 0.5 ? b + (preset.hats.swing - 0.5) : b;
-      hit(swung, pos === 0 ? 1 : 0.55, preset.drop && pos === 0.5 ? 0.12 : 0.045); // open hats on the offbeat in a drop
-    }
-  }
   if (preset.tabla && on("tabla")) {
-    const tabla = bus(preset.tabla, -0.2, 0.2);
+    const tabla = bus(preset.tabla * (0.6 + 0.5 * energy), -0.2, 0.2);
     for (let b = 0; b < arr.beats; b++) if (!inBreakdown(b)) stroke(ctx, tabla, noise, sa, THEKA[b % 16], P(b), b % 16 === 0 ? 1 : 0.7, keep);
   }
+
+  // ---------------------------------------------------------------- bass
   if (preset.bass.level && on("bass")) {
-    const bass = bus(preset.bass.level, 0);
-    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = preset.bass.kind === "808" ? 600 : 320;
-    const sat = softClip(ctx, preset.bass.kind === "808" ? 3.5 : 2);
+    const bass = bus(0.4 * preset.bass.level, 0); // soloed, the bass sat level with the voice: ~8 dB down
+    const kind = preset.bass.kind;
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = kind === "808" ? 600 : kind === "arp" ? 900 : 320;
+    const sat = softClip(ctx, kind === "808" ? 2.5 : 1.8);
     lp.connect(sat).connect(bass);
-    const root = sa > 160 ? sa / 4 : sa / 2;
-    const fifth = swaraHz(piece.raga.tanpura, 0, root);
-    if (preset.bass.kind === "808") {
-      // One long note per bar, gliding into the next: Sa, Sa, the tanpura's note, Sa.
+    const low = sa > 160 ? sa / 4 : sa / 2; // the bass octave
+    const rootHz = (b: number) => semiHz(chordAt(b)[0] % 12, low);
+    const fifthHz = (b: number) => semiHz(chordAt(b)[2 % chordAt(b).length] % 12, low);
+    const note = (t: number, hz: number, len: number, g = 1, type: OscillatorType = "sine") => {
+      for (const [mult, gg] of [[1, 1], [2, 0.22]] as const) {
+        const o = keep(ctx.createOscillator()); o.type = type; o.frequency.value = hz * mult;
+        const e = ctx.createGain();
+        e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(g * gg, t + 0.01); e.gain.setTargetAtTime(0, t + len - 0.05, 0.05);
+        o.connect(e).connect(lp); o.start(t); o.stop(t + len + 0.3);
+      }
+    };
+    if (kind === "808") {
+      // One long note a bar, sliding into the next chord's root.
       const o = keep(ctx.createOscillator());
       const e = ctx.createGain(); e.gain.value = 0;
       o.connect(e).connect(lp);
-      o.frequency.setValueAtTime(root, P(0));
-      for (let bar = 0; bar * 4 < arr.beats; bar++) {
-        const b = bar * 4, hz = bar % 4 === 2 ? fifth : root, t = P(b);
-        if (inBreakdown(b)) { e.gain.setTargetAtTime(0, t, 0.05); continue; }
-        o.frequency.setTargetAtTime(hz, t - 0.04, 0.03); // the slide
-        e.gain.setTargetAtTime(1, t, 0.008);
-        e.gain.setTargetAtTime(0.55, t + 0.15, 0.4);
+      o.frequency.setValueAtTime(rootHz(0), P(0));
+      for (let bar = 0; bar < bars; bar++) {
+        const b = bar * 4, t = P(b);
+        if (!playing(b)) { e.gain.setTargetAtTime(0, t, 0.05); continue; }
+        o.frequency.setTargetAtTime(rootHz(b), t - 0.04, 0.03);
+        e.gain.setTargetAtTime(1, t, 0.008); e.gain.setTargetAtTime(0.55, t + 0.15, 0.4);
       }
       e.gain.setTargetAtTime(0, P(arr.beats), 0.1);
       o.start(P(0)); o.stop(end);
+    } else if (kind === "log") {
+      // The log drum carries the bassline: root, the chord's fifth, root, its octave.
+      lane(G.log, "bass", (t, v, _ch, b) => {
+        const step = Math.round((b % 4) * 4);
+        const hz = step < 6 ? rootHz(b) : step < 11 ? fifthHz(b) : rootHz(b) * (step > 12 ? 2 : 1);
+        logDrum(ctx, bass, t, hz, v, keep);
+      });
+    } else if (kind === "arp") {
+      for (let b = 0; b < arr.beats; b += 0.25) if (playing(b)) note(P(b), rootHz(b) * (Math.round(b * 4) % 2 ? 2 : 1), 0.22 * beat, 0.8, "sawtooth");
+    } else if (kind === "offbeat") {
+      for (let b = 0.5; b < arr.beats; b += 1) if (playing(b) && drums(b)) note(P(b), rootHz(b), 0.4 * beat, 1);
     } else {
-      for (let c = 0; c < cycles; c++) for (const [k, hz] of [[0, root], [8, fifth]] as const) {
-        const b = c * 16 + k;
-        if (b >= arr.beats || inBreakdown(b) || !drums(b)) continue; // a drop holds the low end back until it drops
-        const t = P(b), len = 6 * beat;
-        for (const [mult, g] of [[1, 1], [2, 0.25]] as const) {
-          const o = keep(ctx.createOscillator()); o.frequency.value = hz * mult;
-          const e = ctx.createGain();
-          e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(g, t + 0.03); e.gain.setTargetAtTime(0, t + len - 0.3, 0.15);
-          o.connect(e).connect(lp);
-          o.start(t); o.stop(t + len + 0.5);
-        }
+      for (let bar = 0; bar < bars; bar++) {
+        const b = bar * 4;
+        if (!playing(b) || !drums(b)) continue;
+        note(P(b), rootHz(b), 3.5 * beat, 1);
       }
     }
   }
