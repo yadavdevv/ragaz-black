@@ -75,7 +75,7 @@ export default function Studio() {
   const piece: Piece | null = useMemo(() => build(pick), [bandishes, ragas, data, pick]); // eslint-disable-line react-hooks/exhaustive-deps
   const arr = useMemo(() => (piece ? arrange(piece) : null), [piece]);
   const total = piece ? lengthInBeats(piece) : 0;
-  if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") Object.assign(window, { __studio: { renderWav, PRESETS, piece, bandish: b, bandishes, build, themeFor } }); // read by the headless render
+  if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") Object.assign(window, { __studio: { renderWav, PRESETS, piece, bandish: b, bandishes, build, themeFor, arrange } }); // read by the headless render
   const section = beatNow === null || !arr ? null : (arr.sections.find(([, start, len]) => beatNow >= start && beatNow < start + len)?.[0] ?? null);
 
   const stop = () => {

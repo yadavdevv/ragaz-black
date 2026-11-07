@@ -160,3 +160,76 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def aakar(notes: list[dict], raga: str, sa: float, tempo: float, name: str = "hvocal") -> np.ndarray:
+    """The wordless parts sung on "aa" by a learned DDSP voice (default: the Hindustani one), at FS."""
+    import torch
+
+    from ragaz.ddsp import HOP, bowed_loudness, load_voice, loudness_reference
+    from ragaz.ddsp import SR as DSR
+    from ragaz.render import SR as RSR
+    from ragaz.render import expressive_cents
+
+    beat = 60 / tempo
+    ns = [SimpleNamespace(swara=n["s"], octave=n["o"], start=n["t"], duration=n["d"]) for n in notes]
+    if not ns:
+        return np.zeros(1)
+    end = max(n.start + n.duration for n in ns)
+    seconds = end * beat + 1.0
+    frames = int(seconds * DSR / HOP)
+    comp = SimpleNamespace(notes=ns, beats=end)
+    cents = expressive_cents(comp, beat, int(seconds * RSR), raga, json.loads(Path("data/expression.json").read_text()))
+    f0 = sa * 2 ** (cents[(np.arange(frames) * HOP * RSR / DSR).astype(int).clip(0, len(cents) - 1)] / 1200)
+    level, spread = loudness_reference(name)
+    ld = bowed_loudness(comp, beat, frames, level, spread, attack=0.13)
+    with torch.no_grad():
+        y = load_voice(name=name)(torch.from_numpy(f0).float()[None], torch.from_numpy(ld).float()[None])[0].numpy()
+    assert DSR == FS
+    return y / (np.abs(y).max() + 1e-9) * 0.8
+
+
+def room(x: np.ndarray, fs: int, seconds: float = 1.8, wet: float = 0.22, seed: int = 3) -> np.ndarray:
+    """A plain vocal reverb: decaying filtered noise, convolved."""
+    from scipy.signal import fftconvolve, lfilter
+
+    n = int(seconds * fs)
+    ir = np.random.default_rng(seed).standard_normal(n) * np.exp(-4.5 * np.arange(n) / n)
+    ir = lfilter([0.25], [1, -0.75], ir)
+    ir /= np.sqrt((ir ** 2).sum())
+    return (1 - wet) * x + wet * fftconvolve(x, ir)[: len(x)]
+
+
+def mix_track(bed_wav: str, timeline: dict, sa: float, tempo: float, out: str, t0: float = 0.05) -> None:
+    """The studio's bed (rendered with its formant voices off) + sung words + the wordless parts on the
+    DDSP voice, aligned to the bed's start (t0), with a vocal reverb and gentle compression."""
+    from scipy.io import wavfile
+    from scipy.signal import resample_poly
+
+    sr, bed = wavfile.read(bed_wav)
+    bed = bed.astype(np.float64) / 32768
+    words = sing(timeline, sa, tempo)
+    lyric_spans = [(x["t"], x.get("end", x["t"] + 1)) for x in timeline["lyrics"]]
+    worded = lambda n: any(a - 0.01 <= n["t"] < b for a, b in lyric_spans) or any(abs(n["t"] - x["t"]) < 0.3 for x in timeline["lyrics"])  # noqa: E731
+    wordless = [n for n in timeline["notes"] if not worded(n)]
+    aa = aakar(wordless, timeline["raga"], sa, tempo) if wordless else np.zeros(1)
+    n = max(len(words), len(aa))
+    vox = np.zeros(n)
+    vox[: len(words)] += words
+    vox[: len(aa)] += 0.7 * aa
+    vox = room(vox, FS)
+    # gentle compression: tame the peaks, bring up the quiet syllables
+    env = np.sqrt(np.convolve(vox ** 2, np.ones(400) / 400, mode="same")) + 1e-6
+    vox = vox * np.minimum(1.0, (0.25 / env) ** 0.35)
+    vox = resample_poly(vox, sr, FS)
+    # The lead sits about 1 dB above the bed (measured where each is sounding), not under it.
+    rms = lambda x: np.sqrt(np.mean(x[np.abs(x) > 1e-3] ** 2)) if np.any(np.abs(x) > 1e-3) else 1.0  # noqa: E731
+    vox *= 1.12 * rms(bed.mean(1)) / rms(vox)
+    vox = np.stack([vox, vox], 1)
+    a = int(t0 * sr)
+    total = max(len(bed), a + len(vox))
+    mixed = np.zeros((total, 2))
+    mixed[: len(bed)] += bed
+    mixed[a : a + len(vox)] += vox
+    mixed = 0.95 * np.tanh(mixed / 0.95)  # a soft limiter on the sum, instead of turning it all down
+    wavfile.write(out, sr, (mixed * 32767).astype(np.int16))
