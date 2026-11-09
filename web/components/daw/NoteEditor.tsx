@@ -189,7 +189,7 @@ export function NoteEditor({ clip, track, raga, snap, sa, playhead, onChange, on
                   </div>
                 );
               })}
-              {playhead !== null && playhead >= 0 && playhead <= clip.len && <div className="pointer-events-none absolute top-0 w-px bg-sindoor" style={{ left: playhead * ppb, height: H }} />}
+              <div data-ph-clip data-start={clip.start} data-ppb={ppb} className="pointer-events-none absolute top-0 w-px bg-sindoor" style={{ left: (playhead ?? -1) * ppb, height: H, display: playhead !== null && playhead >= 0 && playhead <= clip.len ? "block" : "none" }} />
             </div>
             {/* velocity lane */}
             <div className="relative border-t border-rule" style={{ height: VEL + 8 }}>

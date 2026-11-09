@@ -25,8 +25,9 @@ type Props = {
   selected: string[];
   range: Range | null;
   selTrack: string | null;
-  meters: Record<string, number>;
-  printed: Float32Array;
+  printRef: React.MutableRefObject<Float32Array>;
+  drawRef: React.MutableRefObject<(() => void) | null>; // the page calls it each frame while playing
+  loopRange: { a: number; b: number } | null;
   onSeek: (b: number) => void;
   onSelect: (ids: string[], track?: string) => void;
   onRange: (r: Range | null) => void;
@@ -87,25 +88,27 @@ export function Timeline(p: Props) {
     window.addEventListener("resize", on);
     return () => { el.removeEventListener("scroll", on); window.removeEventListener("resize", on); };
   }, [p.scrollRef]);
-  useEffect(() => {
-    const c = printCanvas.current;
-    if (!c) return;
-    const w = Math.max(1, viewW - HEAD), dpr = window.devicePixelRatio || 1;
-    c.width = w * dpr; c.height = PRINT * dpr; c.style.width = `${w}px`;
+  const draw = () => {
+    const c = printCanvas.current, el = p.scrollRef.current;
+    if (!c || !el) return;
+    const sx = el.scrollLeft, w = Math.max(1, el.clientWidth - HEAD), dpr = window.devicePixelRatio || 1;
+    if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = PRINT * dpr; c.style.width = `${w}px`; }
+    c.style.left = `${sx}px`;
     const g = c.getContext("2d")!;
-    g.scale(dpr, dpr);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, PRINT);
-    const per = 8; // buckets per beat
-    const from = Math.floor((scrollX / ppb) * per), to = Math.ceil(((scrollX + w) / ppb) * per);
+    const pr = p.printRef.current, per = 8; // buckets per beat
+    const from = Math.max(0, Math.floor((sx / ppb) * per)), to = Math.min(pr.length, Math.ceil(((sx + w) / ppb) * per));
     g.fillStyle = "#131A2B";
-    for (let i = Math.max(0, from); i < Math.min(p.printed.length, to); i++) {
-      const v = p.printed[i];
+    for (let i = from; i < to; i++) {
+      const v = pr[i];
       if (!v) continue;
-      const x = (i / per) * ppb - scrollX, h = Math.min(1, v * 1.6) * (PRINT - 4);
-      g.globalAlpha = 0.85;
-      g.fillRect(x, PRINT / 2 - h / 2, Math.max(1, ppb / per - 0.5), h);
+      const h = Math.min(1, v * 1.6) * (PRINT - 4);
+      g.fillRect((i / per) * ppb - sx, PRINT / 2 - h / 2, Math.max(1, ppb / per - 0.5), h);
     }
-  }, [p.printed, scrollX, viewW, ppb, p.playhead]);
+  };
+  p.drawRef.current = draw;
+  useEffect(draw, [scrollX, viewW, ppb]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Moving and resizing clips, and sweeping out a range.
   useEffect(() => {
@@ -178,9 +181,10 @@ export function Timeline(p: Props) {
               </div>
             ))}
             {showBeats && Array.from({ length: cap }, (_, i) => (i % 4 ? <div key={`b${i}`} className="absolute top-[16px] h-[10px] border-l border-kajal/15" style={{ left: i * ppb }} /> : null))}
-            <canvas ref={printCanvas} className="pointer-events-none absolute" style={{ left: scrollX, top: RULER, height: PRINT }} />
+            <canvas ref={printCanvas} className="pointer-events-none absolute" style={{ top: RULER, height: PRINT }} />
+            {p.loopRange && <div className="pointer-events-none absolute top-0 h-[6px] rounded-full bg-sona" style={{ left: p.loopRange.a * ppb, width: (p.loopRange.b - p.loopRange.a) * ppb }} title="Looping" />}
             {rng && <div className="pointer-events-none absolute top-0 h-full bg-sindoor/15 ring-1 ring-sindoor/50" style={{ left: rng.a * ppb, width: (rng.b - rng.a) * ppb }} />}
-            <div className="pointer-events-none absolute top-0 z-10 h-full w-px bg-sindoor" style={{ left: p.playhead * ppb }}>
+            <div data-ph className="pointer-events-none absolute top-0 z-10 h-full w-px bg-sindoor" style={{ left: p.playhead * ppb }}>
               <div className="absolute -left-[5px] top-0 h-0 w-0 border-x-[5px] border-t-[7px] border-x-transparent border-t-sindoor" />
             </div>
           </div>
@@ -207,7 +211,7 @@ export function Timeline(p: Props) {
                   <input type="range" min={-1} max={1} step={0.05} value={t.pan} onChange={(e) => p.onTrack(t.id, { pan: Number(e.target.value) })} onDoubleClick={() => p.onTrack(t.id, { pan: 0 })} onClick={(e) => e.stopPropagation()} className="h-1 w-10 accent-kajal" title={`Pan ${t.pan === 0 ? "centre" : t.pan < 0 ? `${Math.round(-t.pan * 100)}% left` : `${Math.round(t.pan * 100)}% right`}`} />
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-paper2"><div className="h-full rounded-full bg-gradient-to-r from-sona via-gulal to-sindoor transition-[width] duration-75" style={{ width: `${Math.min(100, (p.meters[t.id] ?? 0) * 260)}%` }} /></div>
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-paper2"><div data-meter={t.id} className="h-full w-0 rounded-full bg-gradient-to-r from-sona via-gulal to-sindoor" /></div>
                   {t.fx.map((f) => <span key={f.id} title={FX_BY[f.type]?.name} className="rounded bg-kajal/10 px-1 text-[9px] text-kajal/70">{FX_BY[f.type]?.name}</span>)}
                 </div>
               </div>
@@ -268,7 +272,7 @@ export function Timeline(p: Props) {
               {hover && !hover.track && <div className="pointer-events-none absolute h-9 rounded-md border-2 border-dashed border-sindoor/70" style={{ left: hover.beat * ppb, width: 8 * ppb }} />}
             </div>
             {/* the playhead, and the cap */}
-            <div className="pointer-events-none absolute top-0 z-10 w-px bg-sindoor" style={{ left: p.playhead * ppb, height: project.tracks.length * LANE + 48 }} />
+            <div data-ph className="pointer-events-none absolute top-0 z-10 w-px bg-sindoor" style={{ left: p.playhead * ppb, height: project.tracks.length * LANE + 48 }} />
             <div className="pointer-events-none absolute top-0 border-l-2 border-dashed border-kajal/40" style={{ left: cap * ppb, height: project.tracks.length * LANE + 48 }}>
               <span className="absolute left-1 top-1 whitespace-nowrap text-[10px] text-kajal/50">3:00 · the end</span>
             </div>

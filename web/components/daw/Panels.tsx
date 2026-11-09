@@ -4,7 +4,7 @@
 // Effects: what runs on the selected clip or track, and its settings) and the library at the side,
 // whose items are dragged onto the timeline (or clicked to drop them at the playhead).
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Envelope, FilterView, Formula, Harmonics, Lfo, WavePlot } from "@/components/WaveEditors";
 import { FX, FX_BY, GROUPS, defaults } from "@/lib/daw/fx";
 import { GROOVES, INSTRUMENTS, bassLines, chordClips, phrases } from "@/lib/daw/library";
@@ -142,39 +142,52 @@ function Thumb({ clip, drums }: { clip: Omit<Clip, "id">; drums: boolean }) {
   );
 }
 
+const FAVOURITES = ["echo", "hall", "lofi", "rise", "fall", "pump", "riser", "tapestop", "fadein", "fadeout"];
+
 export function Library({ raga, pieces, onAdd }: { raga: Raga; pieces: Note[][]; onAdd: (d: Drag) => void }) {
-  const [tab, setTab] = useState<"fx" | "grooves" | "phrases" | "bass" | "chords" | "sounds">("grooves");
-  const [group, setGroup] = useState<string>("all");
+  const [tab, setTab] = useState<"beats" | "melodies" | "fx" | "sounds">("beats");
+  const [all, setAll] = useState(false);
   const clipItems = (list: { name: string; blurb?: string; make: () => Omit<Clip, "id"> }[], drums: boolean, suggest?: string): Item[] => list.map((x) => ({ key: x.name, name: x.name, blurb: x.blurb, drag: { kind: "clip", clip: x.make(), drums, suggest } }));
-  const items: Item[] =
-    tab === "fx" ? FX.filter((f) => group === "all" || f.group === group).map((f) => ({ key: f.type, name: f.name, blurb: f.blurb, drag: { kind: "fx", type: f.type } }))
-    : tab === "grooves" ? clipItems(GROOVES, true, "drums")
-    : tab === "phrases" ? clipItems(phrases(pieces, 12).map((x) => ({ ...x, blurb: "Eight beats the composer wrote in this raga." })), false, "sitar")
-    : tab === "bass" ? clipItems(bassLines(raga), false, "bass")
-    : tab === "chords" ? clipItems(chordClips(raga), false, "epiano")
-    : INSTRUMENTS.map((d, i) => ({ key: d.name, name: d.name, blurb: d.blurb, drag: { kind: "inst", index: i } }));
-  const TABS = [["grooves", "Grooves"], ["phrases", "Phrases"], ["bass", "Bass"], ["chords", "Chords"], ["fx", "Effects"], ["sounds", "Sounds"]] as const;
+  // Built once per raga: the phrases are searched for in the composer's pieces.
+  const melodies = useMemo(() => [
+    { head: `Phrases the composer wrote in ${raga.name}`, items: clipItems(phrases(pieces, 10).map((x) => ({ ...x, blurb: "Eight beats, for a lead: sitar, bansuri, a synth." })), false, "sitar") },
+    { head: "Bass lines", items: clipItems(bassLines(raga), false, "bass") },
+    { head: "Chords", items: clipItems(chordClips(raga), false, "epiano") },
+  ], [raga, pieces]); // eslint-disable-line react-hooks/exhaustive-deps
+  const beats = useMemo(() => clipItems(GROOVES, true, "drums"), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const groups: { head?: string; items: Item[] }[] =
+    tab === "beats" ? [{ items: beats }]
+    : tab === "melodies" ? melodies
+    : tab === "fx" ? (all ? GROUPS.map((g) => ({ head: g, items: FX.filter((f) => f.group === g).map((f) => ({ key: f.type, name: f.name, blurb: f.blurb, drag: { kind: "fx" as const, type: f.type } })) })) : [{ head: "The most useful ten", items: FAVOURITES.map((k) => FX_BY[k]).map((f) => ({ key: f.type, name: f.name, blurb: f.blurb, drag: { kind: "fx" as const, type: f.type } })) }])
+    : [{ items: INSTRUMENTS.map((d, i) => ({ key: d.name, name: d.name, blurb: d.blurb, drag: { kind: "inst" as const, index: i } })) }];
+  const TABS = [["beats", "Beats"], ["melodies", "Melodies"], ["fx", "Effects"], ["sounds", "Sounds"]] as const;
+  const hint = tab === "fx" ? "Drag onto a clip: it runs while that clip plays. Onto a track's name: always." : tab === "sounds" ? "Click to add a track that plays this sound." : "Drag onto a lane, or click to drop it at the playhead.";
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap gap-1 border-b border-rule p-2">
-        {TABS.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`rounded-full px-2.5 py-1 text-[12px] ${tab === k ? "bg-kajal text-paper" : "text-kajal/70 hover:text-sindoor"}`}>{l}</button>)}
+      <div className="grid grid-cols-4 gap-1 border-b border-rule p-2">
+        {TABS.map(([k, l]) => <button key={k} data-guide={`lib-${k}`} onClick={() => setTab(k)} className={`rounded-full px-2 py-1 text-[12px] ${tab === k ? "bg-kajal text-paper" : "text-kajal/70 hover:text-sindoor"}`}>{l}</button>)}
       </div>
-      {tab === "fx" && <div className="flex flex-wrap gap-1 border-b border-rule px-2 py-1.5">{["all", ...GROUPS].map((g) => <button key={g} onClick={() => setGroup(g)} className={`rounded px-1.5 text-[11px] ${group === g ? "text-sindoor underline" : "text-sepia"}`}>{g}</button>)}</div>}
-      <p className="px-3 pt-2 text-[11px] leading-[1.4] text-sepia">{tab === "fx" ? "Drag onto a clip (runs while it plays) or a track's name (always). Click to add to the selection." : tab === "sounds" ? "Click to add a track with this sound." : `Drag onto a lane, or click to drop at the playhead. In ${raga.name}.`}</p>
-      <div className="min-h-0 flex-1 space-y-1.5 overflow-auto p-2">
-        {items.map((it) => (
-          <div key={it.key} draggable onDragStart={(e) => { e.dataTransfer.setData(DND, JSON.stringify(it.drag)); e.dataTransfer.effectAllowed = "copy"; }}
-            onClick={() => onAdd(it.drag)}
-            className="cursor-grab rounded-lg border border-rule bg-leaf px-2.5 py-2 transition-colors hover:border-sindoor/60 active:cursor-grabbing">
-            <div className="flex items-center gap-2">
-              {it.drag.kind === "fx" && <FxIcon d={FX_BY[it.drag.type].icon} className="text-sindoor" />}
-              <span className="font-display text-[15px] leading-tight text-kajal">{it.name}</span>
-              {it.drag.kind === "clip" && <span className="ml-auto text-[10px] text-sepia">{it.drag.clip.len / 4} bar{it.drag.clip.len === 4 ? "" : "s"}</span>}
-            </div>
-            {it.blurb && <div className="mt-0.5 text-[11px] leading-[1.35] text-kajal/55">{it.blurb}</div>}
-            {it.drag.kind === "clip" && <Thumb clip={it.drag.clip} drums={it.drag.drums} />}
+      <p className="px-3 pt-2 text-[11px] leading-[1.4] text-sepia">{hint}</p>
+      <div className="min-h-0 flex-1 overflow-auto p-2">
+        {groups.map((g, gi) => (
+          <div key={gi} className="mb-2 space-y-1.5">
+            {g.head && <div className="px-1 pt-1 text-[10px] uppercase tracking-[0.18em] text-sepia">{g.head}</div>}
+            {g.items.map((it) => (
+              <div key={it.key} draggable onDragStart={(e) => { e.dataTransfer.setData(DND, JSON.stringify(it.drag)); e.dataTransfer.effectAllowed = "copy"; }}
+                onClick={() => onAdd(it.drag)}
+                className="cursor-grab rounded-lg border border-rule bg-leaf px-2.5 py-2 transition-colors hover:border-sindoor/60 active:cursor-grabbing">
+                <div className="flex items-center gap-2">
+                  {it.drag.kind === "fx" && <FxIcon d={FX_BY[it.drag.type].icon} className="text-sindoor" />}
+                  <span className="font-display text-[15px] leading-tight text-kajal">{it.name}</span>
+                  {it.drag.kind === "clip" && <span className="ml-auto text-[10px] text-sepia">{it.drag.clip.len / 4} bar{it.drag.clip.len === 4 ? "" : "s"}</span>}
+                </div>
+                {it.blurb && <div className="mt-0.5 text-[11px] leading-[1.35] text-kajal/55">{it.blurb}</div>}
+                {it.drag.kind === "clip" && <Thumb clip={it.drag.clip} drums={it.drag.drums} />}
+              </div>
+            ))}
           </div>
         ))}
+        {tab === "fx" && <button onClick={() => setAll(!all)} className="w-full rounded-full border border-rule py-1.5 text-[12px] hover:border-sindoor/60">{all ? "Show the ten" : `Show all ${FX.length}`}</button>}
       </div>
     </div>
   );
