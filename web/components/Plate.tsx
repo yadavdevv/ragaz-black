@@ -43,6 +43,7 @@ export function Plate({ p, className = "", caption = true, tone = "night" }: { p
       </button>
       {caption && (
         <figcaption className={`mt-3 text-[13px] leading-snug ${sub}`}>
+          {p.standIn && <span className="mb-1 block not-italic text-sindoor">{p.standIn}</span>}
           <span className="italic">{p.title}</span> · {p.place}, {p.date} · {p.museum}
         </figcaption>
       )}

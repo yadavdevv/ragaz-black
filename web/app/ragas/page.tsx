@@ -92,7 +92,7 @@ export default function Ragas() {
                   <div className="mt-3 font-mono text-[12px] tracking-wider text-kajal/60">{r.swaras.join(" ")}</div>
                   <div className="mt-1 text-[12px] text-sepia">{count(r.key)} pieces</div>
                 </div>
-                {art && <img src={art.src} alt={art.title} className="h-[120px] w-[84px] shrink-0 rounded-sm object-cover opacity-90 shadow-sm" />}
+                {art && <img src={art.src} alt={art.title} title={art.standIn ?? art.title} className="h-[120px] w-[84px] shrink-0 rounded-sm object-cover opacity-90 shadow-sm" />}
               </Link>
             );
           })}
