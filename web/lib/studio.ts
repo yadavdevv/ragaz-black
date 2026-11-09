@@ -780,13 +780,17 @@ export async function renderWav(piece: Piece, preset: Preset, layers: Layers = {
   const seconds = lengthInBeats(piece) * (60 / preset.tempo) + preset.reverb.seconds + 1;
   const ctx = new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate);
   produce(ctx, ctx.destination, piece, preset, layers, 0.05);
-  const buf = await ctx.startRendering();
-  const n = buf.length, data = new DataView(new ArrayBuffer(44 + n * 4));
+  return encodeWav(await ctx.startRendering());
+}
+
+/** A rendered buffer as a 16-bit stereo WAV. */
+export function encodeWav(buf: AudioBuffer): Blob {
+  const sampleRate = buf.sampleRate, n = buf.length, data = new DataView(new ArrayBuffer(44 + n * 4));
   const w = (o: number, s: string) => [...s].forEach((c, i) => data.setUint8(o + i, c.charCodeAt(0)));
   w(0, "RIFF"); data.setUint32(4, 36 + n * 4, true); w(8, "WAVE"); w(12, "fmt ");
   data.setUint32(16, 16, true); data.setUint16(20, 1, true); data.setUint16(22, 2, true); data.setUint32(24, sampleRate, true);
   data.setUint32(28, sampleRate * 4, true); data.setUint16(32, 4, true); data.setUint16(34, 16, true); w(36, "data"); data.setUint32(40, n * 4, true);
-  const L = buf.getChannelData(0), R = buf.getChannelData(1);
+  const L = buf.getChannelData(0), R = buf.getChannelData(buf.numberOfChannels > 1 ? 1 : 0);
   for (let i = 0; i < n; i++) {
     data.setInt16(44 + i * 4, Math.max(-1, Math.min(1, L[i])) * 32767, true);
     data.setInt16(46 + i * 4, Math.max(-1, Math.min(1, R[i])) * 32767, true);
