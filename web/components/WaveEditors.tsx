@@ -1,7 +1,8 @@
 "use client";
 
-// The pictures on /waves, each one also the control: drag the harmonics, turn their phases, pull the
-// envelope's corners, and see the filter over the harmonics it cuts. lib/waves.ts makes the sound.
+// The sound designer's pictures (the studio's Sound panel), each one also the control: drag the
+// harmonics, turn their phases, pull the envelope's corners, and see the filter over the harmonics
+// it cuts. lib/waves.ts describes the sound.
 
 import { useEffect, useRef, useState } from "react";
 import { H, type Patch, cycle, peak } from "@/lib/waves";

@@ -1,7 +1,7 @@
 "use client";
 
-// The studio: one of the model's bandishes, produced as a track (lib/studio.ts). Pick a bandish
-// and a sound, switch layers on and off to hear what each adds, play it, or download the mix.
+// Remix: one of the model's bandishes, produced as a track (lib/studio.ts). Pick a bandish and a
+// sound, switch layers on and off to hear what each adds, play it, or download the mix.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type Bandish, lyricsOf } from "@/components/BandishCard";
@@ -30,7 +30,7 @@ const KNOBS: { key: keyof Controls; label: string; min: number; max: number; ste
   { key: "voice", label: "Voice", min: 0.3, max: 1.3, step: 0.01, show: (v) => `${Math.round(v * 100)}%` },
 ];
 
-export default function Studio() {
+export default function Remix() {
   const data = useData();
   const [bandishes, setBandishes] = useState<Bandish[]>([]);
   const [pick, setPick] = useState(0);
@@ -132,8 +132,8 @@ export default function Studio() {
       <section className="relative overflow-hidden px-6 pb-10 pt-36 sm:px-10">
         <div className="pointer-events-none absolute -left-40 top-0 h-[640px] w-[640px] rounded-full bg-sona/15 blur-[140px]" />
         <div className="relative mx-auto max-w-[1400px]">
-          <div className="text-[12px] uppercase tracking-[0.24em] text-sepia">Studio</div>
-          <h1 className="mt-4 font-display text-[clamp(64px,10vw,170px)] leading-[0.88]"><RiseChars text="Produce it." /></h1>
+          <div className="text-[12px] uppercase tracking-[0.24em] text-sepia">Remix</div>
+          <h1 className="mt-4 font-display text-[clamp(64px,10vw,170px)] leading-[0.88]"><RiseChars text="Remix it." /></h1>
           <p className="mt-8 max-w-[680px] text-[clamp(18px,2vw,22px)] leading-[1.5] text-kajal/80">
             A bandish the model composed, made into a track: the raga melody and sung words on top, a bed built the way records are made underneath, all together from the first beat. Between the sthayi and the antara, and after the last words, the voice and a bansuri carry on without words, low in the raga.
           </p>

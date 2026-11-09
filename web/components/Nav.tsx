@@ -11,7 +11,7 @@ const LEFT = [
   { href: "/sing", label: "Sing" },
   { href: "/compose", label: "Compose" },
   { href: "/studio", label: "Studio" },
-  { href: "/waves", label: "Waves" },
+  { href: "/remix", label: "Remix" },
   { href: "/instruments", label: "Instruments" },
 ];
 const RIGHT = [
