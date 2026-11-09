@@ -72,35 +72,35 @@ export const FX: FxDef[] = [
     build: (ctx) => {
       let d!: DelayNode, fb!: GainNode;
       const w = wetDry(ctx, (input, wet) => {
-        d = ctx.createDelay(4); fb = ctx.createGain();
-        const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 4200;
+        d = ctx.createDelay(4); fb = ctx.createGain(); fb.gain.value = 0; // no feedback until a clip sets it
+        const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 4200; lp.Q.value = 0; // no peak: the loop must lose energy
         input.connect(d); d.connect(lp).connect(fb).connect(d); lp.connect(wet);
       });
-      return { ...w, apply: (p, a, b, beat) => { w.apply(p, a, b, beat); d.delayTime.setValueAtTime(Math.min(3.9, (p.time * beat) / 4), a); fb.gain.setValueAtTime(p.feedback, a); } };
+      return { ...w, apply: (p, a, b, beat) => { w.apply(p, a, b, beat); d.delayTime.setValueAtTime(Math.min(3.9, (p.time * beat) / 4), a); fb.gain.setValueAtTime(Math.min(0.85, p.feedback), a); } };
     } },
   { type: "pingpong", name: "Ping-pong", group: "Space", icon: "M2 4h6M10 16h6M18 4h6M26 16h6 M5 4l8 12l8-12l8 12", blurb: "Echoes that bounce from left to right.",
     params: mix([{ key: "time", label: "Every", min: 1, max: 8, step: 1, def: 2, unit: "/16" }, { key: "feedback", label: "Repeats", min: 0, max: 0.85, step: 0.01, def: 0.5 }]),
     build: (ctx) => {
       let l!: DelayNode, r!: DelayNode, fb!: GainNode;
       const w = wetDry(ctx, (input, wet) => {
-        l = ctx.createDelay(4); r = ctx.createDelay(4); fb = ctx.createGain();
+        l = ctx.createDelay(4); r = ctx.createDelay(4); fb = ctx.createGain(); fb.gain.value = 0;
         const merge = ctx.createChannelMerger(2), mono = ctx.createGain(); mono.channelCount = 1; mono.channelCountMode = "explicit";
         input.connect(mono).connect(l); l.connect(r); r.connect(fb).connect(l);
         l.connect(merge, 0, 0); r.connect(merge, 0, 1); merge.connect(wet);
       });
-      return { ...w, apply: (p, a, b, beat) => { w.apply(p, a, b, beat); const t = Math.min(1.9, (p.time * beat) / 4); l.delayTime.setValueAtTime(t, a); r.delayTime.setValueAtTime(t, a); fb.gain.setValueAtTime(p.feedback, a); } };
+      return { ...w, apply: (p, a, b, beat) => { w.apply(p, a, b, beat); const t = Math.min(1.9, (p.time * beat) / 4); l.delayTime.setValueAtTime(t, a); r.delayTime.setValueAtTime(t, a); fb.gain.setValueAtTime(Math.min(0.85, p.feedback), a); } };
     } },
   { type: "dub", name: "Dub echo", group: "Space", icon: "M2 10c4-8 6 8 10 0s6 8 10 0s6 8 10 0", blurb: "A dark, long echo that feeds on itself, as in dub reggae.",
     params: mix([{ key: "feedback", label: "Repeats", min: 0.3, max: 0.9, step: 0.01, def: 0.68 }]),
     build: (ctx) => {
       let d!: DelayNode, fb!: GainNode;
       const w = wetDry(ctx, (input, wet) => {
-        d = ctx.createDelay(4); fb = ctx.createGain();
+        d = ctx.createDelay(4); fb = ctx.createGain(); fb.gain.value = 0;
         const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 900; bp.Q.value = 0.8;
         const sat = shaper(ctx, (x) => Math.tanh(1.5 * x));
         input.connect(d); d.connect(bp).connect(sat).connect(fb).connect(d); bp.connect(wet);
       });
-      return { ...w, apply: (p, a, b, beat) => { w.apply(p, a, b, beat); d.delayTime.setValueAtTime(Math.min(3.9, beat * 0.75), a); fb.gain.setValueAtTime(p.feedback, a); } };
+      return { ...w, apply: (p, a, b, beat) => { w.apply(p, a, b, beat); d.delayTime.setValueAtTime(Math.min(3.9, beat * 0.75), a); fb.gain.setValueAtTime(Math.min(0.9, p.feedback), a); } };
     } },
   { type: "hall", name: "Hall", group: "Space", icon: "M2 18 Q8 2 16 10 T32 6", blurb: "A big room: the sound blooms and takes seconds to die away.",
     params: mix(), build: (ctx) => wetDry(ctx, (input, wet) => { const c = ctx.createConvolver(); c.buffer = room(ctx, 3.6, 21, 0.3); input.connect(c).connect(wet); }) },

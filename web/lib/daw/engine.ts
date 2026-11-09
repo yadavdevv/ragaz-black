@@ -137,6 +137,30 @@ export function playNote(ctx: BaseAudioContext, out: AudioNode, t: Track, at: nu
   }
 }
 
+// ------------------------------------------------------------------------------------- the guard
+// One misbehaving node (a feedback loop that runs away) would put NaN into the master and silence
+// everything after it. Each track ends in a tiny worklet that turns anything not finite into 0
+// and clamps what is left, so a bad track goes quiet instead of taking the mix with it.
+
+const GUARD = `registerProcessor("ragaz-guard", class extends AudioWorkletProcessor {
+  process(inputs, outputs) {
+    const i = inputs[0], o = outputs[0];
+    for (let c = 0; c < o.length; c++) { const a = i[c] || i[0], b = o[c]; if (!a) continue; for (let k = 0; k < b.length; k++) { const x = a[k]; b[k] = x === x && x > -8 && x < 8 ? x : x > 0 ? 8 : x < 0 ? -8 : 0; } }
+    return true;
+  }
+});`;
+const guarded = new WeakMap<BaseAudioContext, Promise<boolean>>();
+
+/** Load the guard into a context (once). Resolves false where worklets aren't available. */
+export function prepare(ctx: BaseAudioContext): Promise<boolean> {
+  let p = guarded.get(ctx);
+  if (!p) {
+    p = ctx.audioWorklet ? ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([GUARD], { type: "text/javascript" }))).then(() => true, () => false) : Promise.resolve(false);
+    guarded.set(ctx, p);
+  }
+  return p;
+}
+
 // ------------------------------------------------------------------------------------- chains
 
 type Slot = { built: Built; wet: GainNode; dry: GainNode };
@@ -156,7 +180,7 @@ function patchSpace(ctx: BaseAudioContext, t: Track, from: AudioNode, to: AudioN
   if (!p || t.inst !== "synth") return;
   if (p.echo.mix > 0) {
     const d = ctx.createDelay(4), fb = ctx.createGain(), send = ctx.createGain(), lp = ctx.createBiquadFilter();
-    d.delayTime.value = Math.min(3.9, (p.echo.steps * spb) / 2); fb.gain.value = Math.min(0.85, p.echo.feedback); send.gain.value = p.echo.mix; lp.type = "lowpass"; lp.frequency.value = 3800;
+    d.delayTime.value = Math.min(3.9, (p.echo.steps * spb) / 2); fb.gain.value = Math.min(0.85, p.echo.feedback); send.gain.value = p.echo.mix; lp.type = "lowpass"; lp.frequency.value = 3800; lp.Q.value = 0;
     from.connect(send).connect(d).connect(lp).connect(fb).connect(d); lp.connect(to);
   }
   if (p.reverb > 0) {
@@ -171,6 +195,7 @@ function patchSpace(ctx: BaseAudioContext, t: Track, from: AudioNode, to: AudioN
 export class Engine {
   ctx: BaseAudioContext;
   master: GainNode;
+  guard = false; // set once prepare() has loaded the worklet
   analyser: AnalyserNode;
   chains = new Map<string, Chain>();
   private shape = "";
@@ -180,11 +205,15 @@ export class Engine {
     const glue = ctx.createDynamicsCompressor();
     glue.threshold.value = -14; glue.ratio.value = 2.5; glue.attack.value = 0.01; glue.release.value = 0.25;
     const limit = ctx.createDynamicsCompressor();
-    limit.threshold.value = -3; limit.ratio.value = 20; limit.attack.value = 0.002; limit.release.value = 0.1;
-    this.master = ctx.createGain(); this.master.gain.value = 0.9;
+    limit.threshold.value = -6; limit.ratio.value = 20; limit.attack.value = 0.001; limit.release.value = 0.1; limit.knee.value = 0;
+    this.master = ctx.createGain(); this.master.gain.value = 0.7;
+    // A safety curve after the limiter: untouched below 0.8, bending smoothly so nothing passes 1.
+    const safe = ctx.createWaveShaper(), n = 4096, curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 4 - 2, a = Math.abs(x); curve[i] = Math.sign(x) * (a < 0.8 ? a : 0.8 + 0.2 * Math.tanh((a - 0.8) / 0.2)); }
+    safe.curve = curve;
     this.analyser = ctx.createAnalyser(); this.analyser.fftSize = 4096; this.analyser.smoothingTimeConstant = 0.6;
     this.bus = ctx.createGain();
-    this.bus.connect(glue).connect(limit).connect(this.master).connect(this.analyser).connect(dest);
+    this.bus.connect(glue).connect(limit).connect(this.master).connect(safe).connect(this.analyser).connect(dest);
   }
   bus: GainNode;
 
@@ -216,7 +245,9 @@ export class Engine {
       const post = ctx.createGain();
       node.connect(post); nodes.push(post);
       patchSpace(ctx, t, post, vol, spb);
-      post.connect(vol).connect(pan).connect(meter).connect(this.bus);
+      let last: AudioNode = post;
+      if (this.guard) { try { const g = new AudioWorkletNode(ctx, "ragaz-guard", { outputChannelCount: [2] }); post.connect(g); last = g; nodes.push(g); } catch {} }
+      last.connect(vol).connect(pan).connect(meter).connect(this.bus);
       this.chains.set(t.id, { input, slots, always: t.fx.map((f) => f.type), vol, pan, meter, nodes });
     }
     this.mix(p, true);
@@ -253,7 +284,11 @@ export class Engine {
     for (const t of p.tracks) for (const f of t.fx) this.activate(t.id, f.type, f.params, a, Infinity, secPerBeat(p));
   }
 
+  stats = { notes: 0, late: 0, worst: 0 }; // how many notes were scheduled, and how many too late
   note(p: Project, e: Ev, at: number) {
+    this.stats.notes++;
+    const lag = this.ctx.currentTime - at;
+    if (lag > 0.005) { this.stats.late++; this.stats.worst = Math.max(this.stats.worst, lag); }
     const t = p.tracks.find((x) => x.id === e.track), c = this.chains.get(e.track);
     if (t && c) playNote(this.ctx, c.input, t, at, e.s, e.dur * secPerBeat(p), e.v, p.sa);
   }
@@ -309,7 +344,7 @@ export class Player {
     const e = this.engine, ctx = e.ctx as AudioContext;
     this.project = p;
     e.build(p);
-    e.master.gain.cancelScheduledValues(ctx.currentTime); e.master.gain.setValueAtTime(0.9, ctx.currentTime);
+    e.master.gain.cancelScheduledValues(ctx.currentTime); e.master.gain.setValueAtTime(0.7, ctx.currentTime);
     const tl = timeline(p);
     this.evs = tl.evs; this.acts = tl.acts;
     this.from = from; this.t0 = ctx.currentTime + 0.08; this.done = from;
@@ -323,7 +358,7 @@ export class Player {
 
   private tick() {
     const p = this.project, spb = secPerBeat(p), ctx = this.engine.ctx;
-    const horizon = this.from + (ctx.currentTime + 0.25 - this.t0) / spb;
+    const horizon = this.from + (ctx.currentTime + 0.4 - this.t0) / spb; // 0.4 s ahead: a busy page can't make it miss notes
     const end = this.loop ? Infinity : projectEnd(p);
     while (this.done < horizon) {
       // Work in unrolled beats; map each window to project beats (one loop pass at a time).
@@ -337,7 +372,12 @@ export class Player {
         if (e.beat >= pb1 - 1e-9) break;
         this.engine.note(p, e, at(e.beat));
       }
-      for (const a of this.acts) if (a.a >= pb0 - 1e-9 && a.a < pb1 - 1e-9) this.engine.activate(a.track, a.type, a.params, at(a.a), at(a.b), spb);
+      const cut = (b: number) => (this.loop ? Math.min(b, this.loop.b) : b);
+      for (const a of this.acts) if (a.a >= pb0 - 1e-9 && a.a < pb1 - 1e-9) this.engine.activate(a.track, a.type, a.params, at(a.a), at(cut(a.b)), spb);
+      // Coming round to the loop's start: clips already under way there switch their effects on again.
+      if (this.loop && u0 > this.from && Math.abs(pb0 - this.loop.a) < 1e-9) {
+        for (const a of this.acts) if (a.a < pb0 - 1e-9 && a.b > pb0 + 1e-9) this.engine.activate(a.track, a.type, a.params, at(pb0), at(cut(a.b)), spb);
+      }
       this.done = u0 + span;
       if (span <= 0) break;
     }
@@ -363,9 +403,14 @@ export class Player {
 
 /** Render the whole project offline to a WAV, reporting progress (0..1) as it goes. */
 export async function render(p: Project, onProgress?: (x: number) => void, sampleRate = 44100): Promise<Blob> {
+  return encodeWav(await renderBuffer(p, onProgress, sampleRate));
+}
+
+export async function renderBuffer(p: Project, onProgress?: (x: number) => void, sampleRate = 44100): Promise<AudioBuffer> {
   const spb = secPerBeat(p), seconds = projectEnd(p) * spb + 3;
   const ctx = new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate);
   const e = new Engine(ctx);
+  e.guard = await prepare(ctx);
   e.build(p);
   const t0 = 0.05, { evs, acts } = timeline(p);
   e.trackFx(p, t0);
@@ -378,5 +423,5 @@ export async function render(p: Project, onProgress?: (x: number) => void, sampl
   }
   const buf = await ctx.startRendering();
   onProgress?.(1);
-  return encodeWav(buf);
+  return buf;
 }
