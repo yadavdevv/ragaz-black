@@ -79,14 +79,27 @@ function aksharas(cs: number[]) {
   return out;
 }
 
+// Hindi's silent inherent a (Ohala's rule, right to left): the final one (कमल = ka-mal), and a
+// medial one between a vowel and a consonant that keeps its vowel (आपना = aap-naa, समझना = sa-majh-naa).
+function silentSchwas(ak: ReturnType<typeof aksharas>): Set<number> {
+  const bare = (a: (typeof ak)[number]) => a.vowel === null && !a.dead && a.consonants === 1 && a.sign === null && !a.marks.length;
+  const n = ak.length;
+  const silent = new Set<number>(n > 1 && bare(ak[n - 1]) ? [n - 1] : []);
+  for (let i = n - 2; i > 0; i--) {
+    const next = ak[i + 1];
+    if (bare(ak[i]) && !silent.has(i - 1) && !ak[i - 1].dead && next.vowel === null && next.consonants === 1 && !next.dead && !silent.has(i + 1)) silent.add(i);
+  }
+  return silent;
+}
+
 function brahmicWord(w: string, devanagari: boolean): Raw[] {
   const ak = aksharas([...w].map((ch) => ch.codePointAt(0)!));
+  const silent = devanagari ? silentSchwas(ak) : new Set<number>();
   const out: Raw[] = [];
   ak.forEach((a, i) => {
     const text = String.fromCodePoint(...a.cps);
-    const bareFinal = devanagari && i === ak.length - 1 && i > 0 && a.consonants === 1 && a.sign === null && !a.marks.length;
-    if ((a.dead || bareFinal) && out.length) {
-      // A dead consonant, or Hindi/Braj's silent final a (कमल = ka-mal): it closes the syllable before.
+    if ((a.dead || silent.has(i)) && out.length) {
+      // A dead consonant, or a silent a (कमल = ka-mal, आपना = aap-naa): it closes the syllable before.
       out[out.length - 1].text += text;
       out[out.length - 1].heavy = true;
       return;
@@ -123,6 +136,8 @@ function alphabeticWord(word: string): Raw[] {
     n -= 1;
     base = base.slice(0, -1);
   }
+  // English -ed after a consonant other than t/d is no syllable of its own (watched, played).
+  if (/[^aeioutd]ed$/.test(str()) && base.slice(0, -3).some(isV)) base[base.length - 2] = "_";
   const groups: { start: number; end: number }[] = [];
   for (let i = 0; i < base.length; ) {
     if (isVAt(i)) {
@@ -227,7 +242,7 @@ export function mukhdaIndex(syl: Syllable[]): number {
 
 // A bandish in madhya laya sings about one syllable a beat, two at most: a syllable shorter than
 // half a beat is crowded, whatever its weight.
-const W = { heavyLong: 1.0, heavyShort: -1.2, lightLong: -0.4, lightFits: 0.3, crowded: -1.0, extraNote: -0.18, extraNoteOpen: -0.06, sam: 4.0, lineEndLong: 1.2, lineStartBar: 0.4, rest: -0.3 };
+const W = { heavyLong: 1.0, heavyShort: -1.2, lightLong: -0.4, lightFits: 0.3, crowded: -1.0, extraNote: -0.18, extraNoteOpen: -0.06, sam: 4.0, lineEndLong: 1.2, lineStartBar: 0.4, rest: -0.3, dragged: -0.6 };
 
 /** Set the syllables on a composition's notes (best placement by dynamic programming). */
 export function setWords(syl: Syllable[], notes: Note[], beats: number): Setting | null {
@@ -246,6 +261,8 @@ export function setWords(syl: Syllable[], notes: Note[], beats: number): Setting
     if (i === mk && onSam(j)) g += W.sam;
     const lineEnd = i === k - 1 || syl[i + 1].line !== s.line;
     if (lineEnd && len >= 1.5) g += W.lineEndLong;
+    const limit = lineEnd ? 4 : 2.5;
+    if (len > limit) g += W.dragged * (len - limit); // held so long the word comes apart
     if (s.lineStart && Math.abs(notes[j].t % 4) < 1e-6) g += W.lineStartBar;
     return g;
   };
