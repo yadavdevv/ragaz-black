@@ -152,7 +152,7 @@ export function pieceFor(b: { notes: Note[]; beats: number; bol: string[] }, rag
 }
 
 /** A song: four lines set like a bandish, the first two (the sthayi) on one 32-beat phrase of the
- *  composer's pieces in this raga, the last two (the antara) on another, each by the /words setter.
+ *  composer's pieces in this raga, the last two (the antara) on another, each by the words setter (lib/words.ts).
  *  Each sung syllable keeps its line and its place in the line (the singer speaks whole lines). */
 export function songPiece(text: string, raga: Raga, pieces: Note[][], seed = 0, saHz = 220): Piece | null {
   const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean);

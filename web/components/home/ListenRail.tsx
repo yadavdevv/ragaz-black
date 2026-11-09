@@ -25,7 +25,7 @@ export function ListenRail({ data }: { data: Data }) {
           <h2 className="mt-6 font-display text-[clamp(46px,6.4vw,104px)] leading-[0.95] text-kajal">Each piece has<br /><span className="italic text-sindoor">a shape.</span></h2>
           <p className="mt-6 max-w-[42ch] text-[19px] leading-[1.6] text-sepia">The line is the melody: time runs left to right, pitch rises and falls. Press any card to hear it and watch the line light up as it plays.</p>
         </Reveal>
-        <Magnetic href="/listen" cursor="Open">All 144 pieces →</Magnetic>
+        <Magnetic href="/ragas#library" cursor="Open">All 144 pieces →</Magnetic>
       </div>
       <div
         ref={rail}
