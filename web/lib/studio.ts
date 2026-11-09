@@ -10,6 +10,7 @@ import { Voice, tanpuraPluck, voiceWave } from "./audio";
 import { clap, epiano, hat, kick, logDrum, pluck, rim, shaker, snare, supersaw } from "./kit";
 import { type Note, RATIOS, type Raga, swaraHz } from "./music";
 import { type Lyric, phone } from "./phones";
+import { bestSetting, syllables } from "./words";
 
 /** Drum patterns, 16 steps (sixteenths) per bar, repeating; one or two bars long.
  *  x = hit, o = ghost (soft), O = accent (an open hat, a hard hit), . = rest. */
@@ -38,42 +39,43 @@ export type Preset = {
   ghost: boolean; // the melody an octave below, dark and wet
   drop: boolean; // sthayi builds (filter opens), interlude breaks down, a beat of silence, the antara drops
   gatedSnare?: boolean; // the 80s snare: a big room cut short
+  on: (typeof LAYERS)[number][]; // the instruments this style uses by default (the rest start off)
   energy?: number; // macro: drums' level and density (0..1, default 0.75)
   voice?: number; // macro: voice level (default 0.9)
 };
 
-const base: Omit<Preset, "key" | "name" | "blurb" | "tempo"> = {
+const base: Omit<Preset, "key" | "name" | "blurb" | "tempo" | "on"> = {
   reverb: { seconds: 2.2, send: 0.22 }, delay: { send: 0.08, throw: 0.4, feedback: 0.35 }, pump: 0, groove: {}, swing: 0.5, human: 6,
   tabla: 0, pad: 0, keys: { kind: "none", level: 0 }, pluck: { kind: "none", level: 0 }, bass: { level: 0, kind: "sub" },
   crackle: 0, rain: 0, top: 11000, double: false, ghost: false, drop: false,
 };
 
 export const PRESETS: Preset[] = [
-  { ...base, key: "lofi", name: "Lo-fi", tempo: 92, blurb: "Lo-fi hip hop: a lazy boom-bap swing, a warm FM electric piano on the raga's chords, vinyl dust, a doubled voice.",
+  { ...base, key: "lofi", on: ["voice", "keys", "kick", "snare", "hats", "bass", "texture"], name: "Lo-fi", tempo: 92, blurb: "Lo-fi hip hop: a lazy boom-bap swing, a warm FM electric piano on the raga's chords, vinyl dust, a doubled voice.",
     pump: 0.3, swing: 0.62, human: 9,
     groove: { kick: "x......x..x.....x.......x.x.....", snare: "....x..o....x.......x.......x..o", hat: "x.x.x.x.x.x.x.xOx.x.x.x.x.x.x.x." },
     tabla: 0.15, keys: { kind: "epiano", level: 1 }, bass: { level: 0.4, kind: "sub" }, crackle: 0.022, top: 9000, double: true },
-  { ...base, key: "amapiano", name: "Amapiano", tempo: 112, blurb: "Amapiano: a soft four-on-the-floor, shakers in sixteenths, rimshots, and the log drum's knocking bassline on the raga's notes.",
+  { ...base, key: "amapiano", on: ["voice", "keys", "kick", "snare", "hats", "perc", "bass"], name: "Amapiano", tempo: 112, blurb: "Amapiano: a soft four-on-the-floor, shakers in sixteenths, rimshots, and the log drum's knocking bassline on the raga's notes.",
     pump: 0.35, swing: 0.56, human: 5,
     groove: { kick: "x...x...x...x...", shaker: "xoxoxoxoxoxoxoxo", rim: "..x...x...x..x.x", log: "x..x..x...x.x...", clap: "....x.......x..." },
     keys: { kind: "epiano", level: 0.7 }, pad: 0.04, bass: { level: 0.75, kind: "log" }, top: 16000 },
-  { ...base, key: "synthwave", name: "Synthwave", tempo: 104, blurb: "Synthwave: the 80s, a gated-reverb snare, an octave-jumping bass in sixteenths, supersaw chords, everything wide.",
+  { ...base, key: "synthwave", on: ["voice", "double", "keys", "kick", "snare", "hats", "bass", "riser"], name: "Synthwave", tempo: 104, blurb: "Synthwave: the 80s, a gated-reverb snare, an octave-jumping bass in sixteenths, supersaw chords, everything wide.",
     reverb: { seconds: 3, send: 0.28 }, pump: 0.3, swing: 0.5, human: 2, gatedSnare: true,
     groove: { kick: "x.......x.......", snare: "....x.......x...", hat: "..x...x...x...x." },
     keys: { kind: "supersaw", level: 0.8 }, bass: { level: 0.5, kind: "arp" }, top: 16000, double: true },
-  { ...base, key: "drop", name: "Drop", tempo: 116, blurb: "Build and drop: the sthayi builds as the filter opens, the interlude breaks down, a riser and a beat of silence, then the antara drops: four on the floor, claps, house bass, chord stabs.",
+  { ...base, key: "drop", on: ["voice", "keys", "kick", "snare", "hats", "bass", "pad", "riser"], name: "Drop", tempo: 116, blurb: "Build and drop: the sthayi builds as the filter opens, the interlude breaks down, a riser and a beat of silence, then the antara drops: four on the floor, claps, house bass, chord stabs.",
     reverb: { seconds: 2.6, send: 0.25 }, pump: 0.6, swing: 0.5, human: 2, drop: true,
     groove: { kick: "x...x...x...x...", clap: "....x.......x...", hat: "..O...O...O...O." },
     tabla: 0.12, pad: 0.05, keys: { kind: "stabs", level: 0.9 }, bass: { level: 0.6, kind: "offbeat" }, top: 16000, double: true },
-  { ...base, key: "night", name: "Night", tempo: 104, blurb: "Late and heavy: a half-time trap beat, an 808 that slides between the raga's roots, hats that roll, a sitar answering in the gaps.",
+  { ...base, key: "night", on: ["voice", "ghost", "pluck", "kick", "snare", "hats", "bass"], name: "Night", tempo: 104, blurb: "Late and heavy: a half-time trap beat, an 808 that slides between the raga's roots, hats that roll, a sitar answering in the gaps.",
     reverb: { seconds: 2.8, send: 0.25 }, pump: 0.35, swing: 0.5, human: 3,
     groove: { kick: "x.....x...x..x..x......x.x......", snare: "........x...............x.......", hat: "xxxxxxxxxxxxxxxx", rolls: true },
     tabla: 0.1, pad: 0.05, pluck: { kind: "sitar", level: 0.8 }, bass: { level: 0.55, kind: "808" }, crackle: 0.01, top: 14000, ghost: true },
-  { ...base, key: "rain", name: "Rain", tempo: 98, blurb: "Dub in the monsoon: rain under everything, rimshots thrown into the delay, a deep sub, a ghost voice an octave down.",
+  { ...base, key: "rain", on: ["voice", "ghost", "pluck", "kick", "perc", "hats", "bass", "pad", "texture", "bansuri"], name: "Rain", tempo: 98, blurb: "Dub in the monsoon: rain under everything, rimshots thrown into the delay, a deep sub, a ghost voice an octave down.",
     reverb: { seconds: 3.4, send: 0.3 }, delay: { send: 0.14, throw: 0.7, feedback: 0.5 }, pump: 0.3, swing: 0.55, human: 6,
     groove: { kick: "x.........x.....", rim: "....x.......x...", hat: "..x...x...x...x." },
     tabla: 0.18, pad: 0.05, pluck: { kind: "sitar", level: 0.5 }, bass: { level: 0.55, kind: "sub" }, rain: 0.05, top: 12000, ghost: true },
-  { ...base, key: "calm", name: "Calm", tempo: 96, blurb: "Dawn and stillness: no drums, santoor strings rippling through the raga's chords, a long room, the voice doubled and far away.",
+  { ...base, key: "calm", on: ["voice", "double", "pluck", "pad", "drone", "bansuri"], name: "Calm", tempo: 96, blurb: "Dawn and stillness: no drums, santoor strings rippling through the raga's chords, a long room, the voice doubled and far away.",
     reverb: { seconds: 4.5, send: 0.42 }, delay: { send: 0.12, throw: 0.4, feedback: 0.45 },
     pad: 0.09, pluck: { kind: "santoor", level: 0.7 }, bass: { level: 0.2, kind: "sub" }, crackle: 0.008, top: 15000, double: true, ghost: true },
 ];
@@ -149,6 +151,33 @@ export function pieceFor(b: { notes: Note[]; beats: number; bol: string[] }, rag
   return { notes: b.notes, lyrics, beats: b.beats, raga, saHz, interlude: pickPhrase(pool, 8, { low: true, seed }), coda: pickPhrase(pool, 8, { low: true, endOnSa: true, seed: seed + 1 }) };
 }
 
+/** A song: four lines set like a bandish, the first two (the sthayi) on one 32-beat phrase of the
+ *  composer's pieces in this raga, the last two (the antara) on another, each by the /words setter.
+ *  Each sung syllable keeps its line and its place in the line (the singer speaks whole lines). */
+export function songPiece(text: string, raga: Raga, pieces: Note[][], seed = 0, saHz = 220): Piece | null {
+  const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length !== 4) return null;
+  const windows = pieces.flatMap((ns, i) => [0, 32].map((b) => ({ id: `${i}-${b}`, beats: 32, notes: ns.filter((n) => n.t >= b && n.t < b + 32).map((n) => ({ ...n, t: n.t - b, d: Math.min(n.d, b + 32 - n.t) })) })))
+    .filter((w) => w.notes.length >= 12);
+  const half = (from: number, used?: string) => {
+    const syl = syllables(lines.slice(from, from + 2).join("\n"));
+    const set = bestSetting(syl, windows.filter((w) => w.id !== used));
+    if (!set) return null;
+    const k = new Map<number, number>();
+    const lyrics = set.placements.map((p) => {
+      const s = syl[p.syllable], line = from + s.line, n = k.get(line) ?? 0;
+      k.set(line, n + 1);
+      return { t: set.notes[p.note].t, syl: s.text, line, k: n };
+    });
+    return { notes: set.notes, lyrics, id: set.id };
+  };
+  const a = half(0), b = a && half(2, a.id);
+  if (!a || !b) return null;
+  const shift = <T extends { t: number }>(xs: T[]) => xs.map((x) => ({ ...x, t: x.t + 32 }));
+  return { notes: [...a.notes, ...shift(b.notes)], lyrics: [...a.lyrics, ...shift(b.lyrics)], beats: 64, raga, saHz,
+    interlude: pickPhrase(pieces, 8, { low: true, seed }), coda: pickPhrase(pieces, 8, { low: true, endOnSa: true, seed: seed + 1 }) };
+}
+
 /** The track's timeline as one run of notes and words, with its sections. A short phrase (under two
  *  cycles, e.g. Sing to it's answer) plays as it is, over the bed. */
 export function arrange(p: Piece) {
@@ -166,7 +195,7 @@ export function arrange(p: Piece) {
   // home, the bansuri answers its second half.
   const call = (p.interlude ?? []).filter((n) => n.t < 4), answer = (p.interlude ?? []).filter((n) => n.t >= 4);
   const notes = [...sthayi, ...shift(call, at.interlude), ...shift(antara, I), ...shift(T, at.taan), ...shift(mukhda, at.mukhda - MS), ...shift(p.coda ?? [], at.coda)];
-  const lyrics = p.lyrics && [...p.lyrics.map((l) => ({ ...l, t: l.t < half ? l.t : l.t + I })), ...shift(p.lyrics.filter((l) => l.t >= MS && l.t < MS + M), at.mukhda - MS)];
+  const lyrics = p.lyrics && [...p.lyrics.map((l) => ({ ...l, t: l.t < half ? l.t : l.t + I })), ...shift(p.lyrics.filter((l) => l.t >= MS && l.t <= MS + M), at.mukhda - MS)]; // the mukhda's last syllable lands on sam, the coda's first beat
   const flute = [...shift(answer, at.interlude), ...shift(T, at.taan), ...shift((p.coda ?? []).filter((n) => n.t >= 4), at.coda)];
   const beats = at.coda + C;
   const sections: [string, number, number][] = [["sthayi", 0, half], ...(I ? [["interlude", half, I] as [string, number, number]] : []), ["antara", at.antara, half], ["taan", at.taan, TL], ["mukhda", at.mukhda, M], ...(C ? [["coda", at.coda, C] as [string, number, number]] : [])];
@@ -263,7 +292,8 @@ function rainBuffer(ctx: BaseAudioContext) {
 
 /** Build and schedule the whole track, starting at `t0`. Returns its end time and a stop(). */
 export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, preset: Preset, layers: Layers = {}, t0 = ctx.currentTime + 0.15) {
-  const on = (k: (typeof LAYERS)[number]) => layers[k] !== false;
+  // Restraint: each style plays only its own instruments unless a layer is switched on by hand.
+  const on = (k: (typeof LAYERS)[number]) => layers[k] ?? preset.on.includes(k);
   const beat = 60 / preset.tempo;
   const P = (b: number) => t0 + b * beat; // a beat of the track (0 = the first note)
   const arr = arrange(piece);
@@ -417,7 +447,8 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
   if (on("drone")) {
     const drone = bus(0.28, 0, 0.35);
     const strings = [swaraHz(piece.raga.tanpura, -1, sa), sa, sa, sa / 2].map((hz, i) => tanpuraPluck(ctx, hz, 5, i + 1));
-    const gaps = [1.1, 1.1, 1.1, 1.5];
+    // One string a beat, the four-string cycle once a bar, so it sits with the rhythm.
+    const gaps = [1, 1, 1, 1].map((g) => g * beat);
     let t = P(0), i = 0;
     while (t < P(arr.beats)) {
       const s = keep(ctx.createBufferSource());
@@ -425,7 +456,7 @@ export function produce(ctx: BaseAudioContext, dest: AudioNode, piece: Piece, pr
       const g = ctx.createGain(); g.gain.value = 0.85 + 0.15 * ((i * 7) % 5) / 5;
       s.connect(g).connect(drone);
       s.start(t);
-      t += gaps[i % 4] * 0.95;
+      t += gaps[i % 4];
       i++;
     }
   }

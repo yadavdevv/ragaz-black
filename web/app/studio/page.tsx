@@ -13,7 +13,7 @@ import { RiseChars } from "@/components/Text";
 import { getEngine } from "@/lib/audio";
 import { ragaOfHour } from "@/lib/music";
 import { tick, useData } from "@/lib/site";
-import { type Controls, LAYERS, type Layers, PRESETS, type Piece, arrange, defaultControls, lengthInBeats, pickPhrase, produce, renderWav, themeFor, withControls } from "@/lib/studio";
+import { type Controls, LAYERS, type Layers, PRESETS, type Piece, arrange, defaultControls, lengthInBeats, pickPhrase, produce, renderWav, songPiece, themeFor, withControls } from "@/lib/studio";
 
 const SA = 220;
 const LAYER_NAMES: Record<(typeof LAYERS)[number], string> = {
@@ -75,7 +75,7 @@ export default function Studio() {
   const piece: Piece | null = useMemo(() => build(pick), [bandishes, ragas, data, pick]); // eslint-disable-line react-hooks/exhaustive-deps
   const arr = useMemo(() => (piece ? arrange(piece) : null), [piece]);
   const total = piece ? lengthInBeats(piece) : 0;
-  if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") Object.assign(window, { __studio: { renderWav, PRESETS, piece, bandish: b, bandishes, build, themeFor, arrange } }); // read by the headless render
+  if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") Object.assign(window, { __studio: { renderWav, PRESETS, piece, bandish: b, bandishes, build, themeFor, arrange, song: (text: string, rk: string, seed = 0) => { const r = ragas.find((y) => y.key === rk); return r && data ? songPiece(text, r, data.latest.pieces.filter((p) => p.raga === rk).map((p) => p.notes), seed, SA) : null; } } }); // read by the headless render
   const section = beatNow === null || !arr ? null : (arr.sections.find(([, start, len]) => beatNow >= start && beatNow < start + len)?.[0] ?? null);
 
   const stop = () => {
@@ -122,7 +122,8 @@ export default function Studio() {
     }
   };
 
-  const toggle = (k: (typeof LAYERS)[number]) => { tick("soft"); setLayers((l) => ({ ...l, [k]: l[k] === false })); };
+  const toggle = (k: (typeof LAYERS)[number]) => { tick("soft"); setLayers((l) => ({ ...l, [k]: !(l[k] ?? preset.on.includes(k)) })); };
+  useEffect(() => setLayers({}), [presetKey]); // a new style starts from its own instruments
   // The sheet shows the bandish only: map the track's beat back to it (none during interlude and coda).
   const head = beatNow === null || !arr ? null : arr.toSheet(beatNow);
 
@@ -167,7 +168,7 @@ export default function Studio() {
               )}
               <div className="mt-5 flex flex-wrap gap-2">
                 {LAYERS.map((k) => {
-                  const on = layers[k] !== false;
+                  const on = layers[k] ?? preset.on.includes(k);
                   return <button key={k} onClick={() => toggle(k)} className={`rounded-full border px-4 py-1.5 text-[14px] transition-all ${on ? "border-kajal bg-kajal text-paper" : "border-rule text-kajal/50 line-through"}`}>{LAYER_NAMES[k]}</button>;
                 })}
               </div>
