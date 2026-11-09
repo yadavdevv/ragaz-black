@@ -84,7 +84,7 @@ def prepare(src: Path, minutes_per_file: float = 6.0, min_voiced: float = 0.6, n
     out.mkdir(parents=True, exist_ok=True)
     seg_frames = int(SEG_S * SR / HOP)
     f0s, louds, audios = [], [], []
-    for path in sorted(src.glob("*.mp3")):
+    for path in sorted([*src.glob("*.mp3"), *src.glob("*.wav")]):
         audio = load_audio(path)
         # Keep the most active stretch: a violin stem has long silences between phrases.
         keep = int(minutes_per_file * 60 * SR)
@@ -188,7 +188,23 @@ def spectral_loss(pred, target, ffts=(2048, 1024, 512, 256, 128, 64)):
 # -------------------------------------------------------------------- train
 
 
-def train(steps: int = 6000, batch: int = 8, lr: float = 1e-3, out: Path = Path("runs/voice"), name: str = "violin") -> None:
+def mel_loss(pred, target, n_fft: int = 1024, n_mels: int = 80):
+    """Log-mel distance: timbre weighted the way the ear hears it (v2, with the spectral loss)."""
+    import torch
+
+    win = torch.hann_window(n_fft, device=pred.device)
+    P = torch.stft(pred, n_fft, n_fft // 4, window=win, return_complex=True).abs() ** 2
+    Y = torch.stft(target, n_fft, n_fft // 4, window=win, return_complex=True).abs() ** 2
+    freqs = torch.linspace(0, SR / 2, P.shape[-2], device=pred.device)
+    mel = lambda f: 2595 * torch.log10(1 + f / 700)  # noqa: E731
+    edges = torch.linspace(mel(torch.tensor(30.0)), mel(torch.tensor(SR / 2.0)), n_mels + 2, device=pred.device)
+    hz = 700 * (10 ** (edges / 2595) - 1)
+    fb = torch.clamp(torch.minimum((freqs[None] - hz[:-2, None]) / (hz[1:-1, None] - hz[:-2, None]), (hz[2:, None] - freqs[None]) / (hz[2:, None] - hz[1:-1, None])), min=0)
+    pm, ym = torch.einsum("mf,bft->bmt", fb, P), torch.einsum("mf,bft->bmt", fb, Y)
+    return (torch.log(pm + 1e-6) - torch.log(ym + 1e-6)).abs().mean()
+
+
+def train(steps: int = 6000, batch: int = 8, lr: float = 1e-3, out: Path = Path("runs/voice"), name: str = "violin", crop_s: float = 1.0, mel: float = 0.0) -> None:
     import torch
 
     from ragaz.watchdog import MemoryWatchdog
@@ -216,14 +232,15 @@ def train(steps: int = 6000, batch: int = 8, lr: float = 1e-3, out: Path = Path(
     train_idx = torch.nonzero(~val).squeeze(1)
     val_idx = torch.nonzero(val).squeeze(1)[:16]
     # 1-second crops keep memory small; the GRU still sees continuous context within the crop.
-    crop = SR // HOP
+    crop = int(crop_s * SR / HOP)  # v2: 3 s, so the GRU hears breath and swell across a phrase
     best = float("inf")
     for step in range(1, steps + 1):
         idx = train_idx[torch.randint(len(train_idx), (batch,))]
         start = int(torch.randint(f0.shape[1] - crop, (1,)))
         x_f0, x_ld = f0[idx, start : start + crop].to(device), ld[idx, start : start + crop].to(device)
         y = audio[idx, start * HOP : (start + crop) * HOP].to(device)
-        loss = spectral_loss(model(x_f0, x_ld), y)
+        pred = model(x_f0, x_ld)
+        loss = spectral_loss(pred, y) + (mel * mel_loss(pred, y) if mel else 0.0)
         opt.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 2.0)
@@ -255,12 +272,15 @@ def train(steps: int = 6000, batch: int = 8, lr: float = 1e-3, out: Path = Path(
 
 
 if __name__ == "__main__":
+    # prepare [name] [source dir] [minutes per file]; train [steps] [name] [crop seconds] [mel weight]
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     if cmd == "prepare":
         name = sys.argv[2] if len(sys.argv) > 2 else "violin"
-        prepare(Path(f"data/external/saraga/{name}"), name=name)
+        src = Path(sys.argv[3]) if len(sys.argv) > 3 else Path(f"data/external/saraga/{name}")
+        prepare(src, minutes_per_file=float(sys.argv[4]) if len(sys.argv) > 4 else 6.0, name=name, min_voiced=0.7 if len(sys.argv) > 3 else 0.6)
     elif cmd == "train":
-        train(steps=int(sys.argv[2]) if len(sys.argv) > 2 else 6000, name=sys.argv[3] if len(sys.argv) > 3 else "violin")
+        train(steps=int(sys.argv[2]) if len(sys.argv) > 2 else 6000, name=sys.argv[3] if len(sys.argv) > 3 else "violin",
+              crop_s=float(sys.argv[4]) if len(sys.argv) > 4 else 1.0, mel=float(sys.argv[5]) if len(sys.argv) > 5 else 0.0)
     else:
         print(__doc__)
 

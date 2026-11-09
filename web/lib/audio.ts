@@ -3,6 +3,7 @@
 // visual reads the same clock (AudioContext.currentTime).
 
 import { type Note, type Raga, swaraHz } from "./music";
+import { type Lyric, type Phone, VOWELS, phone } from "./phones";
 
 const HARMONICS = [1.0, 0.35, 0.18, 0.08, 0.04]; // render.py render_lead
 const TANPURA_GAPS = [1.1, 1.1, 1.1, 1.5]; // render.py render_tanpura
@@ -17,7 +18,7 @@ function seeded(seed: number) {
 }
 
 /** One tanpura string: harmonics that bloom one after another (the jawari buzz). */
-function tanpuraPluck(ctx: BaseAudioContext, hz: number, seconds = 5, seed = 0) {
+export function tanpuraPluck(ctx: BaseAudioContext, hz: number, seconds = 5, seed = 0) {
   const sr = ctx.sampleRate;
   const n = Math.floor(seconds * sr);
   const buf = ctx.createBuffer(1, n, sr);
@@ -114,7 +115,7 @@ class Flute {
 
 /** A sung "aa" (aakar): a buzzy source through vowel formants, sliding between notes
  *  the way a Hindustani vocalist does (a scoop into each note, slow meend between them). */
-class Voice {
+export class Voice {
   osc: OscillatorNode;
   lfo: OscillatorNode;
   wobble: OscillatorNode;
@@ -122,7 +123,12 @@ class Voice {
   amp: GainNode;
   breath: GainNode;
   depth: GainNode;
-  constructor(ctx: AudioContext, out: AudioNode, noiseBuf: AudioBuffer, wave: PeriodicWave) {
+  formants: BiquadFilterNode[] = []; // F1–F3 move per syllable when the voice sings words
+  formantGains: GainNode[] = []; // and their loudness: F2 is strong in front vowels (i, e), weak in back ones (u, o)
+  artic: GainNode; // consonant dips, after the note envelope so the two don't fight
+  cons: BiquadFilterNode; // consonant noise: bursts, aspiration, hiss
+  consGain: GainNode;
+  constructor(ctx: BaseAudioContext, out: AudioNode, noiseBuf: AudioBuffer, wave: PeriodicWave) {
     this.osc = ctx.createOscillator();
     this.osc.setPeriodicWave(wave);
     this.amp = ctx.createGain();
@@ -131,8 +137,9 @@ class Voice {
     const sum = ctx.createGain();
     const top = ctx.createBiquadFilter();
     top.type = "lowpass";
-    top.frequency.value = 5200;
-    for (const [f, q, g] of [[760, 6, 1], [1180, 8, 0.6], [2620, 11, 0.32], [3450, 14, 0.12]]) {
+    top.frequency.value = 4200; // smoother: less buzz on top (was 5200)
+    // Formants a little wider than before (Q 6/8/11/14 rang and sounded sharp).
+    for (const [f, q, g] of [[760, 5, 1], [1180, 6, 0.6], [2620, 8, 0.28], [3450, 10, 0.08]]) {
       const bp = ctx.createBiquadFilter();
       bp.type = "bandpass";
       bp.frequency.value = f;
@@ -140,11 +147,22 @@ class Voice {
       const gg = ctx.createGain();
       gg.gain.value = g * 3.2;
       this.osc.connect(bp).connect(gg).connect(sum);
+      if (this.formants.length < 3) {
+        this.formants.push(bp);
+        this.formantGains.push(gg);
+      }
     }
     const body = ctx.createGain(); // a little of the raw source for warmth
     body.gain.value = 0.12;
     this.osc.connect(body).connect(sum);
-    sum.connect(top).connect(this.amp).connect(out);
+    this.artic = ctx.createGain();
+    // A gentle cut where harshness lives (~3 kHz).
+    const soft = ctx.createBiquadFilter();
+    soft.type = "peaking";
+    soft.frequency.value = 3000;
+    soft.Q.value = 1;
+    soft.gain.value = -4;
+    sum.connect(top).connect(soft).connect(this.amp).connect(this.artic).connect(out);
     // vibrato that blooms on held notes, plus a slow natural wobble
     this.lfo = ctx.createOscillator();
     this.lfo.frequency.value = 5.4;
@@ -167,7 +185,48 @@ class Voice {
     this.breath = ctx.createGain();
     this.breath.gain.value = 0;
     this.noise.connect(nb).connect(this.breath).connect(out);
+    this.cons = ctx.createBiquadFilter();
+    this.cons.type = "bandpass";
+    this.consGain = ctx.createGain();
+    this.consGain.gain.value = 0;
+    this.noise.connect(this.cons).connect(this.consGain).connect(out);
   }
+
+  /** Sing a syllable starting at `at`: glide the formants to its vowel and articulate its consonant. */
+  syllable(at: number, p: Phone, level = 1) {
+    const [f1, f2, f3] = this.formants;
+    const to = (f: BiquadFilterNode, hz: number, when: number, tau: number) => f.frequency.setTargetAtTime(hz, when, tau);
+    const dip = (depth: number, len: number) => {
+      this.artic.gain.setTargetAtTime(depth, at - len, len / 4);
+      this.artic.gain.setTargetAtTime(1, at, 0.02);
+    };
+    const burst = (hz: number, q: number, peak: number, len: number, before = 0) => {
+      this.cons.frequency.setValueAtTime(hz, at - before);
+      this.cons.Q.setValueAtTime(q, at - before);
+      this.consGain.gain.setTargetAtTime(0.6 * peak * level, at - before, 0.008); // softer consonants
+      this.consGain.gain.setTargetAtTime(0, at - before + len, len / 3);
+    };
+    switch (p.onset) {
+      case "stop": dip(0.08, 0.06); burst(3000, 1, 0.12, 0.015); break;
+      case "aspirate": dip(0.08, 0.06); burst(1600, 0.8, 0.22, 0.07); break;
+      case "sibilant": dip(0.15, 0.1); burst(5600, 1.6, 0.3, 0.1, 0.1); break;
+      case "fricative": dip(0.3, 0.08); burst(1800, 0.7, 0.18, 0.08, 0.08); break;
+      case "nasal": dip(0.45, 0.07); to(f1, 280, at - 0.07, 0.01); break;
+      case "liquid": dip(0.7, 0.04); to(f3, 1750, at - 0.04, 0.01); break;
+      case "glide-i": { const [a, b] = VOWELS["ī"]; to(f1, a, at - 0.05, 0.01); to(f2, b, at - 0.05, 0.01); break; }
+      case "glide-u": { const [a, b] = VOWELS["ū"]; to(f1, a, at - 0.05, 0.01); to(f2, b, at - 0.05, 0.01); break; }
+    }
+    // Relative formant loudness by vowel (the "aa" defaults are 1, 0.6, 0.32).
+    const front = ["i", "ī", "e", "ai"].includes(p.vowel), back = ["u", "ū", "o", "au"].includes(p.vowel);
+    const [g1, g2, g3] = this.formantGains;
+    g1.gain.setTargetAtTime(3.2 * (back ? 1.1 : 1), at + 0.01, 0.04);
+    g2.gain.setTargetAtTime(3.2 * (front ? 1.0 : back ? 0.35 : 0.6), at + 0.01, 0.04);
+    g3.gain.setTargetAtTime(3.2 * (front ? 0.55 : back ? 0.18 : 0.32), at + 0.01, 0.04);
+    to(f1, p.f[0], at + 0.01, 0.035);
+    to(f2, p.f[1], at + 0.01, 0.04);
+    to(f3, p.f[2], at + 0.01, 0.05);
+  }
+
   start(at: number, hz: number) {
     this.osc.frequency.setValueAtTime(hz * 0.97, at);
     for (const s of [this.osc, this.lfo, this.wobble, this.noise]) s.start(at - 0.02);
@@ -194,6 +253,12 @@ class Voice {
     }
     for (const s of [this.osc, this.lfo, this.wobble, this.noise]) s.stop(at + tau * 10);
   }
+}
+
+/** The voice's source: harmonics falling as 1/k^1.35 (darker and smoother than the old 1/k^1.1). */
+export function voiceWave(ctx: BaseAudioContext) {
+  const vk = Array.from({ length: 40 }, (_, k) => (k === 0 ? 0 : 1 / k ** 1.35));
+  return ctx.createPeriodicWave(new Float32Array(40), new Float32Array(vk));
 }
 
 export type Timbre = "voice" | "flute";
@@ -255,8 +320,7 @@ export class Engine {
     for (let i = 0; i < nd.length; i++) nd[i] = r() * 2 - 1;
     this.wave = ctx.createPeriodicWave(new Float32Array(HARMONICS.length + 1), new Float32Array([0, ...HARMONICS]));
     // A glottal-like source: many harmonics, falling ~1/k^1.1.
-    const vk = Array.from({ length: 40 }, (_, k) => (k === 0 ? 0 : 1 / k ** 1.1));
-    this.voiceWave = ctx.createPeriodicWave(new Float32Array(40), new Float32Array(vk));
+    this.voiceWave = voiceWave(ctx);
   }
 
   get now() {
@@ -333,7 +397,8 @@ export class Engine {
 
   // ------------------------------------------------------------ pieces
 
-  play(notes: Note[], tempo: number, tag?: string): Playback {
+  /** Play notes; with `lyrics` (syllables and their start beats) the voice sings the words. */
+  play(notes: Note[], tempo: number, tag?: string, lyrics?: Lyric[]): Playback {
     this.stopPiece();
     const beat = 60 / tempo;
     const t0 = this.now + 0.3;
@@ -342,6 +407,7 @@ export class Engine {
     const v = this.lead();
     v.start(t0, swaraHz(notes[0].s, notes[0].o, this.saHz));
     notes.forEach((n, i) => v.note(t0 + n.t * beat, swaraHz(n.s, n.o, this.saHz), n.d * beat, i === 0));
+    if (lyrics && v instanceof Voice) for (const l of lyrics) v.syllable(t0 + l.t * beat, phone(l.syl));
     v.release(end);
     this.piece = v;
     const pb = { t0, beat, end, notes, tag };

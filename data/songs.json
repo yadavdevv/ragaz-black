@@ -1,0 +1,17 @@
+{
+  "note": "Original lyrics written for Ragaz (not taken from any song), on what songs now are about: a city at night, missing someone, home, a party, a drive, growing up. Four lines each: the first two are the sthayi, the last two the antara.",
+  "songs": [
+    {"key": "last-metro", "title": "Last Metro", "lang": "hin", "raga": "darbari", "style": "night", "theme": "a city at night, an ex's number still remembered",
+     "words": "आख़िरी मेट्रो में बैठा हूँ\nशहर की बत्ती गिनता हूँ\nतेरा नंबर अब भी याद है\nफ़ोन उठाके रख देता हूँ"},
+    {"key": "wet-roads", "title": "Wet Roads", "lang": "hin", "raga": "miyan_malhar", "style": "rain", "theme": "monsoon, waiting for someone who doesn't come",
+     "words": "भीगी सड़कें ख़ाली चाय\nखिड़की पे तेरा नाम लिखा\nबादल आए तुम ना आए\nफिर भी मैंने छाता रखा"},
+    {"key": "mom-calls", "title": "Mom Calls", "lang": "hin", "raga": "yaman", "style": "lofi", "theme": "living away from home, the evening phone call",
+     "words": "माँ पूछे खाना खाया क्या\nमैं कहता हूँ हाँ खा लिया\nदो रोटी और थोड़ा झूठ\nबस इतने में दिन जी लिया"},
+    {"key": "rooftop", "title": "Rooftop", "lang": "hin", "raga": "bihag", "style": "amapiano", "theme": "a rooftop party, tonight only",
+     "words": "छत पे आजा गाना बजा\nआज की रात कोई ग़म नहीं\nपैरों में ताल हाथों में हाथ\nकल की बातें कल ही सही"},
+    {"key": "headlights", "title": "Headlights", "lang": "eng", "raga": "basant", "style": "drop", "theme": "driving at night to let go",
+     "words": "Headlights running through the rain\nI keep on driving all the same\nTurn it up and let it go\nNobody needs to know my name"},
+    {"key": "paper-boats", "title": "Paper Boats", "lang": "eng", "raga": "bhupali", "style": "calm", "theme": "childhood, things that drift away",
+     "words": "We made paper boats in May\nWatched them float and drift away\nNow the river runs too fast\nStill I wait for them to stay"}
+  ]
+}

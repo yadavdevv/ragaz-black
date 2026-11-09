@@ -69,8 +69,8 @@ def held_out(page: str) -> bool:
 
 
 @cache
-def rows() -> list[dict]:
-    return [json.loads(line) for line in DATA.read_text().splitlines()]
+def rows(path: str = str(DATA)) -> list[dict]:
+    return [json.loads(line) for line in Path(path).read_text().splitlines()]
 
 
 class BandishMixin:
@@ -84,8 +84,11 @@ class BandishMixin:
                         "notation": notation, "reward": s["reward"], "scores": s, "copied": 0.0, "novel": 1.0})
         return out
 
+    def data(self) -> list[dict]:
+        return rows(self.cfg.sft_data or str(DATA))
+
     def specs(self, n: int, rng: random.Random, train: bool) -> list:
-        pool = [r for r in rows() if held_out(r["page"]) != train]
+        pool = [r for r in self.data() if held_out(r["page"]) != train]
         out = []
         for i in range(n):
             raga = self.ragas[(self.step * n + i) % len(self.ragas)]
@@ -112,7 +115,7 @@ class BandishMixin:
     def evaluate(self) -> dict[str, float]:
         cfg = self.cfg
         rng = random.Random(1234)  # the same held-out verses at every evaluation
-        pool = [r for r in rows() if held_out(r["page"])]
+        pool = [r for r in self.data() if held_out(r["page"])]
         specs = []
         for task in TASKS:
             for raga in self.ragas:
@@ -163,7 +166,7 @@ class BandishGRPOTrainer(BandishMixin, GRPOTrainer):
 class BandishSFTTrainer(BandishMixin, SFTTrainer):
     def load_examples(self) -> list[dict]:
         examples = []
-        for r in rows():
+        for r in self.data():
             if held_out(r["page"]):
                 continue
             raga = get_raga(r["raga"])

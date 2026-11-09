@@ -42,7 +42,7 @@ def main() -> None:
     p_render.add_argument("--sa", type=float, default=261.63, help="Sa frequency in Hz")
     p_render.add_argument("--play", action="store_true", help="play with afplay (macOS)")
     p_render.add_argument("--expressive", action="store_true", help="real glides and wavers learned from recordings")
-    p_render.add_argument("--voice", choices=["violin", "vocal"], help="learned DDSP instrument (needs a trained voice run)")
+    p_render.add_argument("--voice", choices=["violin", "vocal", "hvocal"], help="learned DDSP instrument (needs a trained voice run); hvocal = Hindustani vocals (v2)")
 
     p_base = sub.add_parser("baseline", help="sample from a model and score it")
     p_base.add_argument("--model", default="mlx-community/Qwen3.5-0.8B-bf16")

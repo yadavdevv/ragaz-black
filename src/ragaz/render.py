@@ -188,7 +188,7 @@ def render(text: str, raga: Raga, sa_hz: float = 261.63, tempo: float = 100, int
         if not path.exists():
             raise FileNotFoundError("expressive rendering needs data/expression.json: run `python -m ragaz.expression`")
         library = json.loads(path.read_text())
-    if voice in ("violin", "vocal"):
+    if voice in ("violin", "vocal", "hvocal"):
         # Learned DDSP violin (16 kHz) driven by the same expressive pitch curve, resampled to 44.1 kHz.
         from scipy.signal import resample_poly
 

@@ -78,13 +78,14 @@ export default function Words() {
     if (!eng.droneOn) { eng.tune(raga); eng.startDrone(1); }
     eng.timbre = "voice";
     eng.onEnd = () => { setPlaying(false); eng.stopDrone(2); };
-    eng.play(setting.notes, data?.latest.tempo ?? 90, `words-${setting.id}`);
+    eng.play(setting.notes, data?.latest.tempo ?? 90, `words-${setting.id}`, setting.placements.map((p) => ({ t: setting.notes[p.note].t, syl: syl[p.syllable].text })));
     setPlaying(true);
   };
 
   // A bandish the model composed for exactly these words, in this raga (pre-generated).
   const composed = bandishes.find((b) => b.task === "set" && b.raga === rk && b.words?.trim() === text.trim());
   // In this raga, the model's setting of a verse it never saw in training (Surdas, Bihari...).
+  const pool = useMemo(() => (data && rk ? data.latest.pieces.filter((p) => p.raga === rk).map((p) => p.notes) : []), [data, rk]);
   const unseen = bandishes.filter((b) => b.raga === rk && b.task === "set" && b.source && b.source !== "kabir");
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   const heavy = syl.filter((s) => s.heavy).length;
@@ -130,8 +131,8 @@ export default function Words() {
               </div>
             </div>
 
-            {composed && raga && <BandishCard b={composed} raga={raga} tempo={data?.latest.tempo ?? 90} title="Composed for these words by the model" />}
-            {!composed && raga && unseen.map((b, i) => <BandishCard key={i} b={b} raga={raga} tempo={data?.latest.tempo ?? 90} title={`A ${b.source!.startsWith("bhramargeet") ? "Surdas" : b.source!.startsWith("bihari") ? "Bihari" : b.source!.startsWith("rahim") ? "Rahim" : "Kabir"} verse it never saw, set by the model`} />)}
+            {composed && raga && <BandishCard b={composed} raga={raga} tempo={data?.latest.tempo ?? 90} pool={pool} title="Composed for these words by the model" />}
+            {!composed && raga && unseen.map((b, i) => <BandishCard key={i} b={b} raga={raga} tempo={data?.latest.tempo ?? 90} pool={pool} title={`A ${b.source!.startsWith("bhramargeet") ? "Surdas" : b.source!.startsWith("bihari") ? "Bihari" : b.source!.startsWith("rahim") ? "Rahim" : "Kabir"} verse it never saw, set by the model`} />)}
             {setting && raga && (
               <div className="leaf-card border border-rule p-6">
                 <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -143,7 +144,7 @@ export default function Words() {
                 </div>
                 <Bhatkhande notes={setting.notes} beats={setting.beats} head={head} words={setting.words} className="mt-4" />
                 <p className="mt-4 text-[13px] leading-[1.6] text-kajal/55">
-                  The notes are {setting.id.replace(/^[a-z0-9]+-[a-z_]+-/, "piece no. ").replace(/no\. 0?(\d+)/, (_, n) => `no. ${Number(n) + 1}`)} by the newest model in {raga.name}, the best fit for these words of its {data?.latest.pieces.filter((p) => p.raga === rk).length} pieces. ऽ marks a vowel held across notes, as in Bhatkhande&rsquo;s books. The voice sings &ldquo;aa&rdquo; for now: it can&rsquo;t pronounce words yet, so the words light up in time instead.
+                  The notes are {setting.id.replace(/^[a-z0-9]+-[a-z_]+-/, "piece no. ").replace(/no\. 0?(\d+)/, (_, n) => `no. ${Number(n) + 1}`)} by the newest model in {raga.name}, the best fit for these words of its {data?.latest.pieces.filter((p) => p.raga === rk).length} pieces. ऽ marks a vowel held across notes, as in Bhatkhande&rsquo;s books. The voice sings the words roughly (each syllable's vowel and consonant shape from a simple formant voice), and they light up in time.
                 </p>
               </div>
             )}

@@ -102,14 +102,27 @@ def _aksharas(cs: list[int]) -> list[dict]:
     return out
 
 
+def _silent_schwas(ak: list[dict]) -> set[int]:
+    """Hindi's silent inherent a (Ohala's rule, right to left): the final one (कमल = ka-mal), and a
+    medial one between a vowel and a consonant that keeps its vowel (आपना = aap-naa, समझना = sa-majh-naa)."""
+    bare = lambda a: a["vowel"] is None and not a["dead"] and a["consonants"] == 1 and a["sign"] is None and not a["marks"]  # noqa: E731
+    n = len(ak)
+    silent = {n - 1} if n > 1 and bare(ak[-1]) else set()
+    for i in range(n - 2, 0, -1):
+        nxt = ak[i + 1]
+        if bare(ak[i]) and i - 1 not in silent and not ak[i - 1]["dead"] and nxt["vowel"] is None and nxt["consonants"] == 1 and not nxt["dead"] and i + 1 not in silent:
+            silent.add(i)
+    return silent
+
+
 def _brahmic_word(word: str, devanagari: bool) -> list[Syllable]:
     ak = _aksharas([ord(ch) for ch in word])
+    silent = _silent_schwas(ak) if devanagari else set()
     out: list[Syllable] = []
     for i, a in enumerate(ak):
         text = "".join(chr(c) for c in a["cps"])
-        bare_final = devanagari and i == len(ak) - 1 and i > 0 and a["consonants"] == 1 and a["sign"] is None and not a["marks"]
-        if (a["dead"] or bare_final) and out:
-            # A dead consonant, or Hindi/Braj's silent final a (कमल = ka-mal): it closes the syllable before.
+        if (a["dead"] or i in silent) and out:
+            # A dead consonant, or a silent a (कमल = ka-mal, आपना = aap-naa): it closes the syllable before.
             out[-1].text += text
             out[-1].heavy = True
             continue
@@ -157,7 +170,7 @@ def mukhda_index(syl: list[Syllable]) -> int:
     return min(len(syl) - 1, 2)
 
 
-W = {"heavy_long": 1.0, "heavy_short": -1.2, "light_long": -0.4, "light_fits": 0.3, "crowded": -1.0, "extra_note": -0.18, "extra_note_open": -0.06, "sam": 4.0, "line_end_long": 1.2, "line_start_bar": 0.4, "rest": -0.3}
+W = {"heavy_long": 1.0, "heavy_short": -1.2, "light_long": -0.4, "light_fits": 0.3, "crowded": -1.0, "extra_note": -0.18, "extra_note_open": -0.06, "sam": 4.0, "line_end_long": 1.2, "line_start_bar": 0.4, "rest": -0.3, "dragged": -0.6}
 NEG = -1e9
 
 
@@ -195,8 +208,11 @@ def set_words(syl: list[Syllable], onsets: list[float], beats: float) -> Fit | N
         g += (e - j - 1) * (W["extra_note_open"] if s.open else W["extra_note"])
         if i == mk and abs(onsets[j] % 16) < 1e-6:
             g += W["sam"]
-        if (i == k - 1 or syl[i + 1].line != s.line) and ln >= 1.5:
+        line_end = i == k - 1 or syl[i + 1].line != s.line
+        if line_end and ln >= 1.5:
             g += W["line_end_long"]
+        if ln > (4 if line_end else 2.5):
+            g += W["dragged"] * (ln - (4 if line_end else 2.5))  # held so long the word comes apart
         if s.line_start and abs(onsets[j] % 4) < 1e-6:
             g += W["line_start_bar"]
         return g
