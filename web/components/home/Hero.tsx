@@ -34,7 +34,7 @@ export function Hero({ data }: { data: Data }) {
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-4">
             <Magnetic variant="solid" size="lg" cursor="Play" onClick={() => { useSite.getState().set({ queue: tracks }); play(best, { open: true }); }}>▶ Play a raga</Magnetic>
-            <Magnetic variant="line" size="lg" href="/listen" cursor="Open">Browse 144 pieces</Magnetic>
+            <Magnetic variant="line" size="lg" href="/ragas#library" cursor="Open">Browse 144 pieces</Magnetic>
           </div>
         </div>
 

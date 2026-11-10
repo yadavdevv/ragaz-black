@@ -3,6 +3,7 @@
 import { Footer } from "@/components/Footer";
 import { FullHarmonium } from "@/components/FullHarmonium";
 import { Tabla, Tanpura } from "@/components/Instruments";
+import { MoreInstruments } from "@/components/MoreInstruments";
 import { FloralBand, Folio, Hashiya, Rubric } from "@/components/Ornament";
 import { Reveal, RiseChars } from "@/components/Text";
 import { useData } from "@/lib/site";
@@ -28,7 +29,7 @@ export default function Instruments() {
         <div className="mx-auto max-w-[1400px]">
           <Rubric>The instruments of a raga</Rubric>
           <h1 className="mt-5 font-display text-[clamp(52px,11vw,180px)] leading-[0.88] text-kajal"><RiseChars text="Instruments." /></h1>
-          <p className="mt-6 max-w-[52ch] text-[20px] leading-[1.6] text-sepia">A Hindustani performance rests on a few instruments: a drone that never stops, a drum that keeps the cycle, and, in many concerts, a harmonium that follows the voice. All three are playable here. Move across them; there is nothing to click.</p>
+          <p className="mt-6 max-w-[52ch] text-[20px] leading-[1.6] text-sepia">A Hindustani performance rests on a few instruments: a drone that never stops, a drum that keeps the cycle, and, in many concerts, a harmonium that follows the voice. Around them are the melody instruments: strings plucked, struck and bowed, a flute and a reed. All nine are playable here, and every one is synthesised in your browser. Move across them.</p>
         </div>
       </section>
       <FloralBand />
@@ -84,6 +85,15 @@ export default function Instruments() {
             ]} />
           </div>
           <Hashiya><div className="leaf-card p-5 sm:p-8"><Tabla /></div></Hashiya>
+        </div>
+      </section>
+      <section className="bg-paper2/70">
+        <FloralBand />
+        <div className="mx-auto max-w-[1400px] px-6 py-24 sm:px-10">
+          <div className="flex items-center gap-4"><Folio n={4} /><Rubric>The melody instruments</Rubric></div>
+          <h2 className="mt-5 font-display text-[clamp(44px,6vw,96px)] leading-[0.95] text-kajal">Strings, breath and reed.</h2>
+          <p className="mt-6 max-w-[60ch] text-[18px] leading-[1.65] text-sepia">Six instruments that carry the raga itself, tuned to the raga you pick. Sweep across the strings to pluck them; rest on a hole or a point on the bow to hold a note, and move off to let it go.</p>
+          <div className="mt-10"><MoreInstruments /></div>
         </div>
       </section>
       <Footer />

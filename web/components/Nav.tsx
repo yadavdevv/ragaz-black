@@ -7,12 +7,8 @@ import { setDrone, tick, useSite } from "@/lib/site";
 import { Rosette } from "./Ornament";
 
 const LEFT = [
+  { href: "/ragas", label: "Ragas", match: "/ragas" },
   { href: "/sing", label: "Sing" },
-  { href: "/words", label: "Words" },
-  { href: "/studio", label: "Studio" },
-  { href: "/waves", label: "Waves" },
-  { href: "/listen", label: "Listen" },
-  { href: "/ragas/bhupali", label: "Ragas", match: "/ragas" },
   { href: "/compose", label: "Compose" },
   { href: "/instruments", label: "Instruments" },
 ];

@@ -194,3 +194,98 @@ export function logDrum(ctx: BaseAudioContext, out: AudioNode, at: number, hz: n
   o.connect(e).connect(ws).connect(lp).connect(out);
   for (const x of [o, mod]) { x.start(at); x.stop(at + len + 0.05); }
 }
+
+// ------------------------------------------------------------------------------------------ held voices
+// Instruments that sound for as long as they are held (a breath, a bow): each returns release(t).
+//   bansuri   a flute: a nearly pure tone (harmonics 1–3), breath noise around its second harmonic,
+//             a chiff of air at the start, and a vibrato that only arrives once the note has settled.
+//   sarangi   a bowed fiddle: a sawtooth (a bowed string's shape) through three vowel-like formant
+//             resonances, which is what makes it sound like a voice; a slide up into the note.
+//   shehnai   a double reed: harmonics 4–8 lifted (the nasal buzz), a bright formant, a wide vibrato.
+
+export type Release = (at?: number) => void;
+
+function wave(ctx: BaseAudioContext, amps: number[]) {
+  const real = new Float32Array(amps.length + 1), imag = new Float32Array(amps.length + 1);
+  amps.forEach((a, i) => (imag[i + 1] = a));
+  return ctx.createPeriodicWave(real, imag);
+}
+
+function vibrato(ctx: BaseAudioContext, at: number, rate: number, cents: number, delay: number, keep: Keep, targets: AudioParam[]) {
+  const lfo = keep(ctx.createOscillator()); lfo.frequency.value = rate;
+  const depth = ctx.createGain();
+  depth.gain.setValueAtTime(0, at); depth.gain.linearRampToValueAtTime(cents, at + delay + 0.3);
+  lfo.connect(depth);
+  for (const t of targets) depth.connect(t);
+  lfo.start(at);
+  return lfo;
+}
+
+function breath(ctx: BaseAudioContext, noise: AudioBuffer, at: number, hz: number, q: number, keep: Keep) {
+  const n = keep(ctx.createBufferSource()); n.buffer = noise; n.loop = true;
+  const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = hz; bp.Q.value = q;
+  n.connect(bp); n.start(at, (at * 0.37) % 1.5);
+  return { src: n, out: bp };
+}
+
+export function bansuri(ctx: BaseAudioContext, out: AudioNode, at: number, hz: number, v: number, keep: Keep, noise: AudioBuffer): Release {
+  const o = keep(ctx.createOscillator()); o.setPeriodicWave(wave(ctx, [1, 0.18, 0.06])); o.frequency.value = hz;
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, at); env.gain.linearRampToValueAtTime(0.32 * v, at + 0.09);
+  o.connect(env).connect(out);
+  const air = breath(ctx, noise, at, hz * 2, 3, keep);
+  const ae = ctx.createGain(); ae.gain.setValueAtTime(0.5 * v, at); ae.gain.exponentialRampToValueAtTime(0.06 * v, at + 0.12);
+  air.out.connect(ae).connect(out);
+  const lfo = vibrato(ctx, at, 5, 14, 0.35, keep, [o.detune]);
+  o.start(at);
+  return (t = ctx.currentTime) => {
+    const end = Math.max(t, at + 0.1);
+    for (const g of [env.gain, ae.gain]) { g.cancelScheduledValues(end); g.setTargetAtTime(0, end, 0.06); }
+    for (const s of [o, air.src, lfo]) s.stop(end + 0.5);
+  };
+}
+
+export function sarangi(ctx: BaseAudioContext, out: AudioNode, at: number, hz: number, v: number, keep: Keep, noise: AudioBuffer): Release {
+  const o = keep(ctx.createOscillator()); o.type = "sawtooth"; o.frequency.value = hz;
+  o.detune.setValueAtTime(-60, at); o.detune.setTargetAtTime(0, at, 0.06); // the slide up into the note
+  const body = ctx.createGain(); body.gain.value = 0.25;
+  for (const [f, q, g] of [[650, 4, 1], [1150, 5, 0.7], [2700, 6, 0.35]] as const) {
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = q;
+    const gg = ctx.createGain(); gg.gain.value = g;
+    o.connect(bp).connect(gg).connect(body);
+  }
+  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 4500;
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, at); env.gain.linearRampToValueAtTime(1.3 * v, at + 0.16);
+  body.connect(lp).connect(env).connect(out);
+  const bow = breath(ctx, noise, at, 3000, 0.8, keep);
+  const be = ctx.createGain(); be.gain.value = 0.025 * v;
+  bow.out.connect(be).connect(env);
+  const lfo = vibrato(ctx, at, 6, 16, 0.25, keep, [o.detune]);
+  o.start(at);
+  return (t = ctx.currentTime) => {
+    const end = Math.max(t, at + 0.12);
+    env.gain.cancelScheduledValues(end); env.gain.setTargetAtTime(0, end, 0.09);
+    for (const s of [o, bow.src, lfo]) s.stop(end + 0.6);
+  };
+}
+
+export function shehnai(ctx: BaseAudioContext, out: AudioNode, at: number, hz: number, v: number, keep: Keep): Release {
+  const o = keep(ctx.createOscillator());
+  o.setPeriodicWave(wave(ctx, [0.6, 0.45, 0.5, 0.8, 0.85, 0.8, 0.6, 0.5, 0.25, 0.15, 0.1]));
+  o.frequency.value = hz;
+  o.detune.setValueAtTime(-35, at); o.detune.setTargetAtTime(0, at, 0.04);
+  const nose = ctx.createBiquadFilter(); nose.type = "peaking"; nose.frequency.value = 1500; nose.Q.value = 1.2; nose.gain.value = 7;
+  const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 280;
+  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 5200;
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, at); env.gain.linearRampToValueAtTime(0.16 * v, at + 0.05);
+  o.connect(nose).connect(hp).connect(lp).connect(env).connect(out);
+  const lfo = vibrato(ctx, at, 5.5, 22, 0.2, keep, [o.detune]);
+  o.start(at);
+  return (t = ctx.currentTime) => {
+    const end = Math.max(t, at + 0.08);
+    env.gain.cancelScheduledValues(end); env.gain.setTargetAtTime(0, end, 0.05);
+    for (const s of [o, lfo]) s.stop(end + 0.4);
+  };
+}

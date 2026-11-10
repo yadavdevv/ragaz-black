@@ -127,7 +127,7 @@ export function Newest({ data }: { data: Data }) {
           </div>
           <div className="space-y-6">
             {PAINTINGS[rk] && <Plate p={PAINTINGS[rk]} tone="paper" className="mx-auto w-[min(70vw,280px)] -rotate-1" />}
-            <div className="text-center"><Magnetic href={`/listen?model=${L.label}`} cursor="Open">All {L.pieces.length} {L.label} pieces →</Magnetic></div>
+            <div className="text-center"><Magnetic href={`/ragas?model=${L.label}#library`} cursor="Open">All {L.pieces.length} {L.label} pieces →</Magnetic></div>
           </div>
         </div>
       </div>
