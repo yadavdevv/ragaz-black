@@ -60,7 +60,7 @@ main(a.raga, a.n, a.out, a.backend, REPO, a.seed, not a.no_wav)
 
 def card() -> str:
     latest = json.loads(Path("web/public/data/latest.json").read_text())
-    e, conc = latest["eval"], latest["concerts"]
+    e, conc, b = latest["eval"], latest["concerts"], latest["baseline"]
     ragas = ", ".join(r["name"] for r in latest["ragas"])
     example = next(p for p in sorted(latest["pieces"], key=lambda p: -p["reward"]) if p["raga"] == "yaman")["notation"]
     return f"""---
@@ -132,6 +132,18 @@ Sixteen bars of teentaal, four beats a bar, in sargam: uppercase notes are natur
 ```
 
 Ragas: {ragas}.
+
+## Before and after training
+
+The same test, asked the same way (the raga's name only; the prompt's format example is a line in another raga, Durga, with "do not copy its notes"), judged by the same programs:
+
+| | Qwen3-0.6B, untrained | This model |
+|---|---|---|
+| Pieces that are the prompt's example line | {b["copied_example"]:.0%} | {e["copied_pieces"]:.0%} |
+| Named as the raga asked for (independent reader) | {b["reader_accuracy"]:.0%} | {e["reader_accuracy"]:.0%} |
+| Pieces using only the raga's notes | {b["no_wrong_notes"]:.0%} | {e["no_wrong_notes"]:.0%} |
+| Wrote the 16 bars asked for | {b["sixteen_bars"]:.0%} | {e["sixteen_bars"]:.0%} |
+| Mean reward (v6, 0–1) | {b["reward"]:.3f} | {e["reward"]:.2f} |
 
 ## How good it is
 

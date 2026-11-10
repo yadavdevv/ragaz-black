@@ -16,7 +16,7 @@ import { SWARAS } from "@/lib/music";
 import { type Track, pieceTrack, singVoice, stop, toggle, useData, useSite } from "@/lib/site";
 import { parse } from "@/lib/verify";
 import { ABOUT } from "@/lib/about";
-import { Evolution } from "@/components/home/Evolution";
+import { Evolution, stageCount } from "@/components/home/Evolution";
 
 const NAMES: Record<string, string> = { S: "Sa", r: "Re", R: "Re", g: "Ga", G: "Ga", m: "Ma", M: "Ma", P: "Pa", d: "Dha", D: "Dha", n: "Ni", N: "Ni" };
 
@@ -174,7 +174,7 @@ export default function RagaPage() {
         <section className="px-6 pt-20 sm:px-10">
           <div className="mx-auto max-w-[1400px]">
             <div className="text-[12px] uppercase tracking-[0.24em] text-sepia">How it learned {raga.name}</div>
-            <div className="mt-2 font-display text-[clamp(36px,4vw,60px)] leading-none">Five stages of training</div>
+            <div className="mt-2 font-display text-[clamp(36px,4vw,60px)] leading-none">From untrained to the newest, {stageCount(data)} stages</div>
             <div className="mt-6"><Evolution data={data} raga={raga.key} /></div>
           </div>
         </section>

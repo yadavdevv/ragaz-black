@@ -9,6 +9,11 @@ import { stop as stopSite, tick, type Data } from "@/lib/site";
 
 const PARTS: [string, string][] = [["rhythm", "rhythm like a singer's"], ["register", "uses the upper octave"], ["pakad", "the signature phrase"]];
 
+export const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+
+/** How many training stages the evolution shows (the same for every raga in it). */
+export const stageCount = (data: Data) => new Set(data.evolution.map((s) => s.stage)).size;
+
 export function Evolution({ data, raga: only }: { data: Data; raga?: string }) {
   const ragas = [...new Set(data.evolution.map((s) => s.raga))];
   const [rk, setRk] = useState(only ?? ragas[1] ?? ragas[0]);
@@ -40,7 +45,7 @@ export function Evolution({ data, raga: only }: { data: Data; raga?: string }) {
             <div key={key} className="grid items-center gap-x-6 gap-y-2 py-4 md:grid-cols-[7.5rem_3rem_1fr_15rem]">
               <div>
                 <div className="font-display text-[24px] leading-none text-kajal">{s.label}</div>
-                <div className="mt-1 text-[12px] text-sepia">{s.bars} bars</div>
+                <div className="mt-1 text-[12px] text-sepia">{s.bars} bars{s.asked && s.asked !== s.bars ? `, asked for ${s.asked}` : ""}</div>
               </div>
               <button onClick={() => play(s.file, key)} disabled={!s.file} className={`grid h-11 w-11 place-items-center rounded-full text-[15px] text-paper ${on === key ? "bg-sindoor" : "bg-kajal"}`} aria-label={`Play the ${s.label} piece`}>{on === key ? "■" : "▶"}</button>
               <div className="text-[15px] leading-[1.5] text-sepia">{s.what}</div>
@@ -58,7 +63,7 @@ export function Evolution({ data, raga: only }: { data: Data; raga?: string }) {
         })}
       </div>
       <p className="mt-4 max-w-[90ch] text-[13px] leading-[1.6] text-sepia">
-        Each stage's piece is a typical one (its median by the score it was trained with), all sung by the same voice in the same way, so what changes is only what was written. The bar is one yardstick for every stage: the newest reward, at the piece's own length. Early pieces move one note per beat (rhythm 0) and mostly stay in one octave; later ones vary their rhythm and climb. <a href="/docs#evolution" className="underline underline-offset-4">How this is measured</a>
+        Each stage's piece is a typical one (its median by the score it was trained with), all sung by the same voice in the same way, so what changes is only what was written. The bar is one yardstick for every stage: the newest reward, at the length each stage was asked for. Early pieces move one note per beat (rhythm 0) and mostly stay in one octave; later ones vary their rhythm and climb. <a href="/docs#evolution" className="underline underline-offset-4">How this is measured</a>
       </p>
       <audio ref={audio} onEnded={() => setOn(null)} preload="none" />
     </div>

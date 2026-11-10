@@ -340,6 +340,8 @@ def latest(all_ragas: dict) -> dict:
         # split, checked on the held-out test split.
         "concerts": concerts_v6(),
         "eval": run_eval(),
+        # Before training: the untrained base model on exactly this evaluation (scripts/baseline_v6.py).
+        "baseline": json.loads(Path("out/baseline-v6/summary.json").read_text()) if Path("out/baseline-v6/summary.json").exists() else None,
         # How singing sounds measured the same way on real concerts and on our pieces, plain and
         # performed (scripts/real_vs_ours.py → reports/performance.json).
         "performance": json.loads(Path("reports/performance.json").read_text()) if Path("reports/performance.json").exists() else None,
@@ -351,7 +353,15 @@ def run_eval() -> dict:
     rows = [json.loads(line) for line in (RUNS / LATEST_RUN / "metrics.jsonl").open() if f'"step": {LATEST_STEP},' in line and "eval/bare/reward" in line]
     m = rows[-1]
     keys = {"reward": "reward", "no_wrong_notes": "no_wrong_notes", "reader_accuracy": "reader_accuracy", "novel_bars": "novel_bars", "copied_example": "copied_example", "realism": "realism"}
-    return {k: round(m[f"eval/bare/{v}"], 4) for k, v in keys.items() if f"eval/bare/{v}" in m}
+    out = {k: round(m[f"eval/bare/{v}"], 4) for k, v in keys.items() if f"eval/bare/{v}" in m}
+    rows = [r for r in jsonl(RUNS / LATEST_RUN / "eval_samples.jsonl") if r["step"] == LATEST_STEP and r["variant"] == "bare"]
+    from ragaz.prompts import EXAMPLE_BARS
+
+    bars = [parse(r["notation"]).bars for r in rows]
+    out["sixteen_bars"] = round(sum(len(b) == 16 for b in bars) / len(rows), 4)
+    # As the baseline counts it: pieces at least half made of the prompt's example bars.
+    out["copied_pieces"] = round(sum(sum(tuple(x) in EXAMPLE_BARS for x in b) >= 0.5 * max(1, len(b)) for b in bars) / len(rows), 4)
+    return out
 
 
 def concerts_v6() -> dict:
@@ -377,9 +387,9 @@ def evolution() -> list[dict]:
         mp3 = audio / f"evolve-{r['raga']}-{r['stage']}.mp3"
         if wav.exists():
             subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav), "-codec:a", "libmp3lame", "-b:a", "128k", str(mp3)], check=True)
-        v = verify(r["notation"], r["raga"], style="v6", target_bars=r["bars"])
+        v = verify(r["notation"], r["raga"], style="v6", target_bars=r.get("asked", r["bars"]))
         comp = parse(r["notation"])
-        out.append({**{k: r[k] for k in ("raga", "stage", "label", "what", "notation", "bars", "own_score", "pieces", "v6_score", "outside")},
+        out.append({**{k: r[k] for k in ("raga", "stage", "label", "what", "notation", "bars", "asked", "own_score", "pieces", "v6_score", "outside") if k in r},
                     "file": f"/audio/{mp3.name}" if wav.exists() else None,
                     "parts": {k: round(v.scores[k], 3) for k in ("rhythm", "register", "pakad", "motion", "allowed") if k in v.scores},
                     "notes": [{"s": n.swara, "o": n.octave, "t": round(n.start, 4), "d": round(n.duration, 4), "bar": n.bar, "ok": True} for n in comp.notes]})

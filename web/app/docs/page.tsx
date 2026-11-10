@@ -23,7 +23,7 @@ const GUIDES: Guide[] = [
     steps: [
       "Scroll. Each section plays: press any piece to hear it, sung by your browser over a tanpura drone.",
       <>Turn the drone on or off any time with <b>Tanpura</b> at the top right; it stays on as you move between pages.</>,
-      <>The <b>How it works</b> and <b>Results</b> links jump to the explanation and to how good the newest model is. Under Results, <b>How it learned</b> plays the same raga from five stages of training, so you can hear it improve.</>,
+      <>The <b>How it works</b> and <b>Results</b> links jump to the explanation and to how good the newest model is. Under Results, <b>How it learned</b> plays the same raga from six stages, from the untrained model to the newest, so you can hear it improve.</>,
       <>The newest model's recordings (in <b>The newest model</b>) are its notes sung by a learned voice, with breaths and ornaments: see <a href="#hear" className="underline underline-offset-4">What you hear</a>.</>,
     ],
     behind: "Every number on the page comes from the exported training runs; nothing is typed in by hand.",
@@ -33,7 +33,7 @@ const GUIDES: Guide[] = [
     for: "Meet the 13 ragas, then listen to everything the composer wrote in them.",
     steps: [
       <>The ragas are laid out around the clock, morning to midnight, then the seasonal ones (Malhar for the rains, Basant for spring). The one marked <b>now</b> is the raga of the current hour.</>,
-      <>Open a raga for its own page: tap its notes to hear them (the greyed ones are not allowed in it), play its <b>signature phrase</b> (pakad), hear the newest model's piece <b>sung</b>, and for Bhupali, Yaman and Malkauns hear <b>how it learned</b> the raga across five stages of training. Where there are recordings, hear ten seconds of a real singer's line and see how real singers spend their time on each note.</>,
+      <>Open a raga for its own page: tap its notes to hear them (the greyed ones are not allowed in it), play its <b>signature phrase</b> (pakad), hear the newest model's piece <b>sung</b>, and for Bhupali, Yaman and Malkauns hear <b>how it learned</b> the raga across six stages, from the untrained model to the newest. Where there are recordings, hear ten seconds of a real singer's line and see how real singers spend their time on each note.</>,
       <>Below the ragas is <b>the library</b>: every piece, filterable by raga and by model. <b>Newest</b> is the latest composer; the older models show how it improved. Sort by <b>highest score</b> or <b>as written</b>.</>,
       <><b>Play all, full screen</b> queues the whole list in the big player, with the melody drawn as it plays.</>,
     ],
@@ -234,16 +234,17 @@ export default function Docs() {
 
             <article id="evolution" className="scroll-mt-28">
               <h2 className={h2}>How it learned</h2>
-              <p className="mt-6">The model was trained in stages, and each stage was scored by the reward of its time, so their own scores can't be compared. To show the progress fairly, the front page and the raga pages play one piece from each stage, for the three ragas every stage knew:</p>
+              <p className="mt-6">The model was trained in stages, and each stage was scored by the reward of its time, so their own scores can't be compared. To show the progress fairly, the front page and the raga pages play one piece from each stage, starting from the untrained model, for the three ragas every stage knew:</p>
               <ul className="mt-4 space-y-2 text-[16px]">
                 {[...new Map(evo.map((x) => [x.stage, x])).values()].map((x) => <li key={x.stage} className="grid grid-cols-[6rem_1fr] gap-4 border-t border-rule pt-2"><span className="font-display text-[19px] text-kajal">{x.label}</span><span>{x.what}; {x.bars} bars.</span></li>)}
               </ul>
-              <p className="mt-4">Each stage's piece is its <b>median</b> by its own score (a typical piece, not its best), all rendered with the same voice and performance, so the only difference is what was written. Then every piece is scored with <b>one yardstick</b>: the newest reward, at the piece's own length. Under it, the early pieces lose most on <b>rhythm</b> (one note per beat, like a metronome) and <b>register</b> (they mostly stay in one octave); from v5e on, the model varies its rhythm and climbs into the upper octave, as singers do.</p>
+              <p className="mt-4">Each stage's piece is its <b>median</b> by its own score (a typical piece, not its best), all rendered with the same voice and performance, so the only difference is what was written. Then every piece is scored with <b>one yardstick</b>: the newest reward, at the length that stage was asked for (eight bars for the early stages, sixteen for the untrained model and the latest). Under it, the early pieces lose most on <b>rhythm</b> (one note per beat, like a metronome) and <b>register</b> (they mostly stay in one octave); from v5e on, the model varies its rhythm and climbs into the upper octave, as singers do.</p>
             </article>
 
             <article id="results" className="scroll-mt-28">
               <h2 className={h2}>The results, explained</h2>
-              <p className="mt-6">The numbers under “How good is it?” come from the newest run's own evaluation{L ? ` (run ${L.run}, step ${L.step})` : ""}: {L ? L.pieces.length : 78} pieces, written with nothing in the prompt but the raga's name.</p>
+              <p className="mt-6"><b>Before and after.</b> The base model, Qwen3-0.6B as downloaded, was given exactly the same test: the same prompt (the raga's name, the notation's format, and a one-line example from another raga, Durga, with “do not copy its notes”), the same sampling, the same programs judging it. {L?.baseline ? `It copied that example line in ${Math.round(L.baseline.copied_example * 100)}% of its ${L.baseline.pieces} pieces, whatever raga it was asked for, and wrote 4 bars when asked for 16. Its pieces were named as the right raga ${Math.round(L.baseline.reader_accuracy * 100)}% of the time (about chance for twelve ragas), and ${Math.round(L.baseline.no_wrong_notes * 100)}% happened to use only allowed notes, where the example's notes fit the raga. Its mean reward was ${L.baseline.reward.toFixed(3)}, against ${L.eval.reward.toFixed(2)} after training.` : ""} So the before-and-after is the same question, asked the same way: only the training differs.</p>
+              <p className="mt-4">The numbers under “How good is it?” come from the newest run's own evaluation{L ? ` (run ${L.run}, step ${L.step})` : ""}: {L ? L.pieces.length : 78} pieces, written with nothing in the prompt but the raga's name.</p>
               <dl className="mt-5 divide-y divide-rule border-y border-rule text-[16px]">
                 {[
                   ["Ragas", "How many ragas it was trained to write. Twelve have concert recordings behind them; Deshkar has none and is learned from rules and examples alone."],

@@ -8,7 +8,7 @@
               stage (before RL, v1, v2, v5e, v6) for the ragas every stage knew, all in the same
               voice and performance, so only the composing differs. The piece is each stage's
               median by its own run's score (typical, not the best), and every piece is scored
-              again with one yardstick: the v6 reward at the piece's own length.
+              again with one yardstick: the v6 reward at the length that stage was asked for.
 Skips what is already rendered (delete a file to redo it). One render at a time.
 """
 
@@ -29,6 +29,7 @@ RAGAS = ["bhupali", "yaman", "malkauns"]
 V5E = Path("runs/grpo/v5e-long-grpo-20261024-1940")
 V6 = Path("runs/grpo/v6-grpo-20261106-0017")
 STAGES = [
+    ("base", "Untrained", "Qwen3-0.6B as downloaded: it copies the prompt's example line (from another raga), whatever raga it is asked for"),
     ("sft", "Before RL", "fine-tuned on examples, never scored"),
     ("v1", "v1", "reinforcement learning on the raga's rules alone"),
     ("v2", "v2", "rewarded for sounding like real recordings, 8 bars"),
@@ -46,7 +47,12 @@ def median_piece(rows: list[dict]) -> dict:
     return rows[len(rows) // 2]
 
 
+ASKED = {"base": 16, "sft": 8, "v1": 8, "v2": 8, "v5e": 16, "v6": 16}  # bars each stage was asked for
+
+
 def stage_rows(stage: str, raga: str) -> list[dict]:
+    if stage == "base":
+        return [r for r in jsonl(Path("out/baseline-v6/samples.jsonl")) if r["raga"] == raga]
     if stage in ("sft", "v1", "v2"):
         d = json.loads(Path("web/public/data/pieces.json").read_text())
         return [p for p in (d["pieces"] if isinstance(d, dict) else d) if p["model"] == stage and p["raga"] == raga]
@@ -78,11 +84,11 @@ def main() -> None:
                 continue
             r = median_piece(rows)
             comp = parse(r["notation"])
-            v = verify(r["notation"], raga, style="v6", target_bars=len(comp.bars))
+            v = verify(r["notation"], raga, style="v6", target_bars=ASKED[key])
             allowed = get_raga(raga).notes
             outside = sum(n.swara not in allowed for n in comp.notes) / max(1, len(comp.notes))
             go(r["notation"], raga, EVOLVE / f"{raga}-{key}.wav", VOICE)
-            table.append({"raga": raga, "stage": key, "label": label, "what": what, "notation": r["notation"], "bars": len(comp.bars),
+            table.append({"raga": raga, "stage": key, "label": label, "what": what, "notation": r["notation"], "bars": len(comp.bars), "asked": ASKED[key],
                           "own_score": round(r["reward"], 4), "own_median": round(statistics.median(x["reward"] for x in rows), 4), "pieces": len(rows),
                           "v6_score": round(v.reward, 4), "outside": round(outside, 4), "violations": v.violations[:3]})
     (EVOLVE / "evolution.json").write_text(json.dumps(table, indent=1, ensure_ascii=False))

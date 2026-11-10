@@ -32,6 +32,18 @@ uv run https://huggingface.co/dev-y/qwen3-0.6b-grpo-indian-classical-ragaz/resol
 
 or `pip install "ragaz[compose] @ git+https://github.com/yadavdevv/ragaz-black"` and `ragaz compose darbari -n 3`. Runs on any computer with Python 3.12 (CPU is fine; ~1.2 GB download once). `scripts/release_hf.py` builds that release.
 
+## Before and after training
+
+The same test for both, asked the same way (the raga's name only; the prompt's format example is a line in another raga, Durga, with "do not copy its notes"), judged by the same programs (78 pieces, 6 per raga; `scripts/baseline_v6.py`):
+
+| | Qwen3-0.6B, untrained | ragaz v6 |
+|---|---|---|
+| Pieces that are the prompt's example line | 100% | 0% |
+| Named as the raga asked for, by a reader trained only on real singers | 7% (about chance) | 100% |
+| Pieces using only the raga's notes | 19% | 100% |
+| Wrote the 16 bars asked for | 0% | 99% |
+| Mean reward (v6, 0–1) | 0.006 | 0.58 |
+
 ## What it is
 
 Qwen3-0.6B, adapted with LoRA, learns to write ragas in sargam notation (`S R G P | G R S - | …`) from nothing but the raga's name. A verifier scores every piece against the raga's rules and against measurements of real concert singers; GRPO pushes the model toward whatever scores higher. Supervised fine-tuning fills in the facts reinforcement learning cannot discover on its own.
@@ -40,7 +52,7 @@ Ragas (13, a full day and the seasons): **Bhairav** (dawn), **Todi**, **Deshkar*
 
 On the site:
 - **Sing to it:** hum over the tanpura; your line is written as sargam, read for its raga (with the notes that gave it away), and answered in that raga. Pitch tracking and the reading run in the browser.
-- **Ragas:** the 13 around the clock, each with its rules, its signature phrase, a real singer's line, the newest model's piece sung, and (for Bhupali, Yaman, Malkauns) the same raga from five stages of training; below them, every piece it wrote.
+- **Ragas:** the 13 around the clock, each with its rules, its signature phrase, a real singer's line, the newest model's piece sung, and (for Bhupali, Yaman, Malkauns) the same raga from six stages, from the untrained model to the newest; below them, every piece it wrote.
 - **Compose:** write a melody in a raga, beat by beat, and get scored as you type.
 - **Instruments:** harmonium, tanpura, tabla, sitar, santoor, swarmandal, bansuri, shehnai, sarangi, all synthesised and playable in any raga.
 - **Docs:** a guide to every page, and how everything is measured.
