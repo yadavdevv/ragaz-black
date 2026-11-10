@@ -287,7 +287,7 @@ def latest(all_ragas: dict) -> dict:
     Scores are the reward the run was trained and evaluated with (the browser verifier
     implements v2, so these pieces are shown with their own run's scores, not re-scored).
     Recordings: out/<label>-<raga>-{vocal,expressive}.wav, converted to MP3 in web/public/audio.
-    vocal = the DDSP voice trained on Carnatic women singers; expressive = the flute synth.
+    vocal = the DDSP voice trained on Hindustani concert vocals (hvocal); expressive = the flute synth.
     """
     import subprocess
 
@@ -333,10 +333,57 @@ def latest(all_ragas: dict) -> dict:
         "ragas": [raga_entry(r) for k, r in all_ragas.items() if any(p["raga"] == k for p in pieces)],
         "pieces": pieces, "recordings": recordings,
         "voices": {
-            "vocal": "a DDSP voice trained on separately miked vocal tracks of 12 women singers from Saraga Carnatic concerts (CC BY-NC-SA 4.0), singing the notes with glides and wavers learned from recordings",
-            "expressive": "a synthesised flute playing the same notes with glides and wavers learned from real singers",
+            "vocal": "a DDSP voice trained on vocals separated (with Demucs) from 16 Hindustani concert recordings in Saraga 1.5 by Ajoy Chakrabarty, Kaustuv Kanti Ganguli and Brajeshwar Mukherjee (CC BY-NC-SA 4.0), a short training run; it sings the notes with glides, wavers, breaths and grace notes measured from real singers",
+            "expressive": "a synthesised flute playing the same notes, performed the same way",
         },
+        # The concerts behind this model's reward (data/real_profiles_v6.json): built from the train
+        # split, checked on the held-out test split.
+        "concerts": concerts_v6(),
+        "eval": run_eval(),
+        # How singing sounds measured the same way on real concerts and on our pieces, plain and
+        # performed (scripts/real_vs_ours.py → reports/performance.json).
+        "performance": json.loads(Path("reports/performance.json").read_text()) if Path("reports/performance.json").exists() else None,
     }
+
+
+def run_eval() -> dict:
+    """The run's own evaluation at the chosen step (metrics.jsonl): what Results quotes."""
+    rows = [json.loads(line) for line in (RUNS / LATEST_RUN / "metrics.jsonl").open() if f'"step": {LATEST_STEP},' in line and "eval/bare/reward" in line]
+    m = rows[-1]
+    keys = {"reward": "reward", "no_wrong_notes": "no_wrong_notes", "reader_accuracy": "reader_accuracy", "novel_bars": "novel_bars", "copied_example": "copied_example", "realism": "realism"}
+    return {k: round(m[f"eval/bare/{v}"], 4) for k, v in keys.items() if f"eval/bare/{v}" in m}
+
+
+def concerts_v6() -> dict:
+    split = json.loads(Path("data/real_profiles_v6.json").read_text())["split"]
+    return {"recordings": sum(len(v["train"]) + len(v["test"]) for v in split.values()), "held_out": sum(len(v["test"]) for v in split.values()), "ragas": len(split)}
+
+
+def evolution() -> list[dict]:
+    """One piece per training stage for the ragas every stage knew (scripts/render_site.py), sung
+    the same way, with each stage's own score and one shared yardstick (the v6 reward at the
+    piece's length) broken into the parts that changed most."""
+    import subprocess
+
+    from ragaz.verify import verify
+
+    src = Path("out/evolve/evolution.json")
+    if not src.exists():
+        return []
+    audio = Path("web/public/audio")
+    out = []
+    for r in json.loads(src.read_text()):
+        wav = Path(f"out/evolve/{r['raga']}-{r['stage']}.wav")
+        mp3 = audio / f"evolve-{r['raga']}-{r['stage']}.mp3"
+        if wav.exists():
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav), "-codec:a", "libmp3lame", "-b:a", "128k", str(mp3)], check=True)
+        v = verify(r["notation"], r["raga"], style="v6", target_bars=r["bars"])
+        comp = parse(r["notation"])
+        out.append({**{k: r[k] for k in ("raga", "stage", "label", "what", "notation", "bars", "own_score", "pieces", "v6_score", "outside")},
+                    "file": f"/audio/{mp3.name}" if wav.exists() else None,
+                    "parts": {k: round(v.scores[k], 3) for k in ("rhythm", "register", "pakad", "motion", "allowed") if k in v.scores},
+                    "notes": [{"s": n.swara, "o": n.octave, "t": round(n.start, 4), "d": round(n.duration, 4), "bar": n.bar, "ok": True} for n in comp.notes]})
+    return out
 
 
 def main() -> None:
@@ -386,6 +433,7 @@ def main() -> None:
     (OUT / "arena.json").write_text(json.dumps(arena(ragas)))
     (OUT / "voices.json").write_text(json.dumps(voices(ragas)))
     (OUT / "latest.json").write_text(json.dumps(latest(load_ragas()), ensure_ascii=False))
+    (OUT / "evolution.json").write_text(json.dumps(evolution(), ensure_ascii=False))
     (OUT / "ragas.json").write_text(json.dumps({"ragas": [raga_entry(r) for r in ragas.values()], **meta}, ensure_ascii=False, indent=1))
     (OUT / "pieces.json").write_text(json.dumps(pieces, ensure_ascii=False))
     (OUT / "masters.json").write_text(json.dumps(masters, ensure_ascii=False, indent=1))

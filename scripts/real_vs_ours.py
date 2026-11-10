@@ -93,9 +93,13 @@ def ours(tempo: float, step: int = 60, run: str = "runs/grpo/v4-final-20261009-2
     return out
 
 
+SUMMARY: dict[str, dict] = {}
+
+
 def summarize(label: str, rows: list[dict]) -> None:
     keys = ["notes_per_s", "dur_p10", "dur_p50", "dur_p90", "holds_1s", "dur_cv", "in_motion", "micro_cents", "breaths_min"]
     vals = {k: statistics.median(r[k] for r in rows) for k in keys}
+    SUMMARY[label] = {k: round(v, 3) for k, v in vals.items()} | {"n": len(rows)}
     print(f"{label:<26}" + "".join(f"{vals[k]:>11.2f}" for k in keys))
 
 
@@ -123,6 +127,9 @@ def main() -> None:
     summarize("ours v6, performed", ours(latest["tempo"], rows=v6, perform=True))
     Path("reports").mkdir(exist_ok=True)
     Path("reports/real_vs_ours.json").write_text(json.dumps({"real": real}, indent=1))
+    # What the site quotes (export_web.py): real singers, the v6 pieces as written, and as performed.
+    keys = [k for k in SUMMARY if k.startswith("real")] + [k for k in SUMMARY if k.startswith("ours v6")]
+    Path("reports/performance.json").write_text(json.dumps({"real": SUMMARY[keys[0]], "plain": SUMMARY[keys[1]], "performed": SUMMARY[keys[2]]}, indent=1))
 
 
 if __name__ == "__main__":
