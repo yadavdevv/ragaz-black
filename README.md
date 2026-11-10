@@ -22,6 +22,16 @@
 
 ---
 
+## Run it yourself
+
+The model is on Hugging Face: **[dev-y/qwen3-0.6b-grpo-indian-classical-ragaz](https://huggingface.co/dev-y/qwen3-0.6b-grpo-indian-classical-ragaz)** (Qwen3-0.6B with the GRPO LoRA merged, CC BY-NC 4.0). One line writes a raga, scores it and saves a WAV over a tanpura:
+
+```bash
+uv run https://huggingface.co/dev-y/qwen3-0.6b-grpo-indian-classical-ragaz/resolve/main/compose.py yaman
+```
+
+or `pip install "ragaz[compose] @ git+https://github.com/yadavdevv/ragaz-black"` and `ragaz compose darbari -n 3`. Runs on any computer with Python 3.12 (CPU is fine; ~1.2 GB download once). `scripts/release_hf.py` builds that release.
+
 ## What it is
 
 Qwen3-0.6B, adapted with LoRA, learns to write ragas in sargam notation (`S R G P | G R S - | …`) from nothing but the raga's name. A verifier scores every piece against the raga's rules and against measurements of real concert singers; GRPO pushes the model toward whatever scores higher. Supervised fine-tuning fills in the facts reinforcement learning cannot discover on its own.

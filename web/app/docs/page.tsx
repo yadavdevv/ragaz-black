@@ -270,7 +270,8 @@ export default function Docs() {
                   ["How big is the model? What did it cost?", "Qwen3-0.6B (0.6 billion parameters) with small LoRA adapters, trained on a MacBook with MLX: no cloud GPUs."],
                   ["Can it sing words?", "Not here. It writes notes; a bandish's words were an experiment that isn't part of this site."],
                   ["Are the raga rules right?", "They follow standard Bhatkhande descriptions and were checked against recordings, but no musician has reviewed them yet. Corrections are welcome."],
-                  ["Can I use the music or the code?", "The code is on GitHub. Several datasets behind the measures and the voice are licensed for non-commercial use only (see Data), so the site and its recordings are non-commercial."],
+                  ["Can I run the model myself?", "Yes: it is on Hugging Face as dev-y/qwen3-0.6b-grpo-indian-classical-ragaz (CC BY-NC 4.0). One command writes a raga, scores it and saves a WAV: uv run https://huggingface.co/dev-y/qwen3-0.6b-grpo-indian-classical-ragaz/resolve/main/compose.py yaman. It runs on any computer with Python, CPU included."],
+                  ["Can I use the music or the code?", "The code is on GitHub. The model and several datasets behind the measures and the voice are licensed for non-commercial use only (see Data), so the site, the model and its recordings are non-commercial."],
                   ["Does Sing record me?", "No. Pitch tracking and the reading run in your browser; no audio leaves the page."],
                 ].map(([q, a]) => <div key={q} className="py-4"><dt className="font-display text-[20px] text-kajal">{q}</dt><dd className="mt-1">{a}</dd></div>)}
               </dl>

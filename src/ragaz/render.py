@@ -5,6 +5,7 @@ Pitches use just intonation relative to Sa, which is how the tanpura tunes the
 ear in practice.
 """
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -280,7 +281,7 @@ def render(text: str, raga: Raga, sa_hz: float = 261.63, tempo: float = 100, int
     if expressive or voice:
         import json
 
-        path = Path("data/expression.json")
+        path = Path(os.environ.get("RAGAZ_EXPRESSION", "data/expression.json"))  # ragaz.compose points this at a download
         if not path.exists():
             raise FileNotFoundError("expressive rendering needs data/expression.json: run `python -m ragaz.expression`")
         library = json.loads(path.read_text())

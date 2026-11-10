@@ -82,11 +82,26 @@ def main() -> None:
     p_btrain.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE")
     p_btrain.add_argument("--resume")
 
+    p_compose = sub.add_parser("compose", help="write a raga with the released model (downloads it once), score it, and save a WAV")
+    p_compose.add_argument("raga", help="e.g. yaman, bhairav, darbari (see `ragaz ragas`)")
+    p_compose.add_argument("-n", type=int, default=1, help="how many pieces")
+    p_compose.add_argument("--out", default=".", help="folder for the .txt and .wav files")
+    p_compose.add_argument("--backend", choices=["auto", "transformers", "mlx"], default="auto", help="auto: MLX if installed (Mac), else transformers")
+    p_compose.add_argument("--repo", default=None, help="Hugging Face model repo (default: the released v6)")
+    p_compose.add_argument("--seed", type=int, default=None)
+    p_compose.add_argument("--no-wav", action="store_true", help="only write and score, don't render")
+
     p_sft = sub.add_parser("sft", help="supervised fine-tuning on distilled compositions")
     p_sft.add_argument("--config", required=True)
     p_sft.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE")
 
     args = parser.parse_args()
+
+    if args.command == "compose":
+        from ragaz.compose import REPO, main as compose
+
+        compose(args.raga, args.n, args.out, args.backend, args.repo or REPO, args.seed, not args.no_wav)
+        return
 
     if args.command == "distill":
         from ragaz.distill import distill

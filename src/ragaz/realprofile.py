@@ -20,6 +20,7 @@ Build once (needs the CompMusic features, see scripts/fetch_compmusic.py):
 
 import json
 import math
+import os
 import random
 from bisect import bisect_left, bisect_right
 from collections import Counter, defaultdict
@@ -34,7 +35,7 @@ FEATURES = Path("data/external/compmusic/features")
 PROFILES = Path("data/real_profiles.json")
 # v6 adds nine ragas. Phrase distinctiveness is relative to all ragas, so the v6 profiles
 # live in their own file and the v5 reward (the live site, parity) stays exactly as it was.
-PROFILES_V6 = Path("data/real_profiles_v6.json")
+PROFILES_V6 = Path(os.environ.get("RAGAZ_PROFILES_V6", "data/real_profiles_v6.json"))  # ragaz.compose points this at a download
 V5_RAGAS = ["bhupali", "yaman", "malkauns"]
 # Recordings whose dataset tonic is wrong, left out of v6 (v5 is kept as it was trained).
 # Evidence (2026-11-05): share of sung time on notes outside the raga, at the given tonic vs shifted.
