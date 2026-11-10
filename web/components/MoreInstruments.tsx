@@ -8,9 +8,8 @@
 import { useEffect, useRef, useState } from "react";
 import { getEngine } from "@/lib/audio";
 import { type Release, bansuri, pluck, sarangi, shehnai } from "@/lib/kit";
-import { ragaOfHour } from "@/lib/music";
 import { tick, useData } from "@/lib/site";
-import { type Row, rows as ragaRows } from "@/lib/waves";
+import { type Row, ragaOfHour, rows as ragaRows } from "@/lib/music";
 
 const INK = "#131A2B", GOLD = "#A8853C", RED = "#B23A22", ROSE = "#D9705A";
 const SA = 220;

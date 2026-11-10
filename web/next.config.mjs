@@ -2,13 +2,12 @@
 export default {
   reactStrictMode: true,
   distDir: process.env.NEXT_DIST_DIR || ".next",
-  // Pages folded into others: Listen is the library on /ragas; Words lives on inside Remix.
+  // Pages folded into others (Listen is the library on /ragas), and the music-making tools, which
+  // were moved out of Ragaz to keep it about ragas (builder_mode/studio-lab).
   async redirects() {
     return [
       { source: "/listen", destination: "/ragas#library", permanent: false },
-      { source: "/words", destination: "/remix", permanent: false },
-      // Waves grew into the studio: its sound designer is the studio's Sound panel.
-      { source: "/waves", destination: "/studio", permanent: false },
+      ...["/words", "/studio", "/remix", "/waves"].map((source) => ({ source, destination: "/", permanent: false })),
     ];
   },
 };

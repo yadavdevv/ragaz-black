@@ -65,38 +65,6 @@ const GUIDES: Guide[] = [
     behind: <>The score is the reward described under <a href="#reward" className="underline underline-offset-4">The reward</a>, computed in your browser (lib/verify.ts mirrors the Python verifier).</>,
   },
   {
-    id: "studio", page: "Studio", href: "/studio", title: "Make a piece, up to three minutes",
-    for: "The heart of the site: a full studio in the browser. Tracks of clips on a timeline, every note editable, every synth designed from its waves, effects dragged on, played live and exported as a WAV.",
-    steps: [
-      <><b>Listen first.</b> The studio opens on seven finished pieces, 1 to 2 minutes each: three famous public-domain tunes re-produced (Ode to Joy as lo-fi, Pachelbel's Canon as house, When the Saints as amapiano) and four originals in ragas built from the composer's phrases. Press <b>Listen</b> to hear one there, or <b>Open in the studio</b> to see exactly how it is built. Or start from a 16-bar sketch in any raga, or a blank page. Your last piece waits under “Where you left off”.</>,
-      <><b>Press space</b> to play. As it plays, its waveform prints itself under the ruler, the scope at the side shows the live wave and spectrum, and each track's meter moves. The bar under the toolbar walks you through six first steps, one at a time, with a “show me” for each.</>,
-      <><b>Add things from the library</b> (right): grooves, the composer's phrases in the raga, bass lines, chords, effects, sounds. Drag one onto a lane, or click it to drop it at the playhead. Dropped below the last track, it makes a new track. Changing the raga changes everything the library offers.</>,
-      <><b>Arrange clips.</b> Drag to move (also onto another track), <K>Alt</K>-drag to copy, pull the right edge to lengthen, double-click an empty lane for a new bar. With clips selected: duplicate (<K>⌘D</K>), split at the playhead (<K>S</K>), play twice as fast or half as fast, delete.</>,
-      <><b>Work on a stretch of time.</b> Drag on the ruler to select it across all tracks (or drag on empty lane space for just those tracks). Then loop it, copy (<K>⌘C</K>), paste at the playhead (<K>⌘V</K>), repeat it, clear it, or play it twice as fast or half as fast: the music after it moves to make room. <b>Loop</b> (<K>L</K>) loops the bars you picked, or the whole piece if you picked none; a gold bar on the ruler shows what is looping.</>,
-      <><b>Simple tools or all of them.</b> The studio starts with the main tools only. <b>All tools</b> adds snapping, the Sa, the zoom slider, ×1.5 and ×0.75, cut, split, and redo.</>,
-      <><b>Zoom</b> with the slider, <K>+</K> <K>−</K>, or <K>⌘</K>/<K>Ctrl</K> + scroll; <K>0</K> fits the whole piece. Zoomed in, the grid shows beats and sixteenths.</>,
-      <><b>Edit every note.</b> Double-click a clip: its notes open below on rows of the raga's notes (tick “all 12 notes” for the others). Click to add, drag to move, pull the edge to lengthen, drag the bars underneath to set how hard each is played, double-click to delete. Step through the raga, shift octaves, quantize, reverse, humanize. Every note sounds as you place it.</>,
-      <><b>Design the sound.</b> Click a track's name and open <b>Sound</b>. For a synth: drag its 16 harmonics and their phases (the wave and its formula update as you drag), its envelope, voices, filter, vibrato and room. Other instruments (sitar, santoor, bansuri, shehnai, sarangi, e-piano, supersaw) can be swapped in with one click.</>,
-      <><b>Add effects.</b> 26 of them in six groups: space (echo, ping-pong, dub, hall, room, wide), tone (lo-fi, telephone, drive, air, dark), motion (filter rise and fall, chorus, phaser, tremolo, auto-pan), rhythm (pump, gate), transitions (fade in and out, tape stop, riser) and notes (octave up, stutter, humanize). On a clip, an effect runs only while that clip plays; on a track's name, under the whole track. Set them in <b>Effects</b>.</>,
-      <><b>Keep it.</b> It saves itself in this browser as you go. <b>Share</b> copies a link that opens your exact piece; <b>File</b> saves and opens project files; <b>Export WAV</b> renders the whole piece, with a progress bar.</>,
-    ],
-    tips: ["The cap is three minutes; the dashed line on the timeline marks where it falls at your tempo.", "Undo (⌘Z) undoes anything: a deleted track, a speed change, a paste.", "Set Snap to Off or ⅛ to place things between the beats; Bar for quick arranging.", "Mute (M) and solo (S) on each track to hear one part at a time."],
-    behind: "Every sound is synthesised in your browser: synths from their Fourier coefficients (a PeriodicWave, so the drawing is the sound), strings by Karplus–Strong, the bansuri, shehnai and sarangi from waves, noise and formant filters, drums the way drum machines make them. Effects are plain Web Audio nodes (delays fed back into themselves, convolution, filters, wave-shapers, slow oscillators). Playback is scheduled a quarter-second ahead, so edits are heard almost at once.",
-  },
-  {
-    id: "remix", page: "Remix", href: "/remix", title: "A bandish, produced",
-    for: "Turn a bandish (a composed song in a raga) into a produced track, with beats, chords and a structure, and download it.",
-    steps: [
-      <>Pick a bandish on the right, by raga and poet (Kabir, Surdas, Bihari). Its melody and words show as Bhatkhande notation.</>,
-      <><b>Pick a sound</b>: Lo-fi, Amapiano, Synthwave, Drop, Night, Rain or Calm. Each raga starts on a style that suits its mood.</>,
-      <>Shape it with the knobs: <b>energy</b>, <b>space</b> (reverb and echo), <b>warmth</b>, <b>swing</b>, <b>tempo</b>, <b>voice</b> level.</>,
-      <>Each style starts with its own set of instruments. Tap an instrument chip to switch it on or off and hear what it adds.</>,
-      <><b>▶ Play the track.</b> The bar under it shows the sections as they pass: sthayi, interlude, antara, taan, mukhda, coda. <b>Download WAV</b> renders the whole track.</>,
-    ],
-    tips: ["Mute everything but one layer to hear how it is built, then add layers back one at a time.", "Changing anything stops playback; press play again to hear the change."],
-    behind: "Every instrument is synthesised in your browser: plucked strings by Karplus–Strong, an FM electric piano, supersaws, and drums built the way drum machines build them. No samples.",
-  },
-  {
     id: "instruments", page: "Instruments", href: "/instruments", title: "Play the instruments",
     for: "Nine instruments of Hindustani music, drawn large and playable.",
     steps: [
@@ -180,7 +148,7 @@ export default function Docs() {
                 {[
                   <>Turn your sound on. Headphones are best, and needed on <b>Sing</b>.</>,
                   <>Open <Link href="/ragas" className="underline underline-offset-4">Ragas</Link> and play the raga marked <b>now</b>: the quickest way to hear what the composer makes.</>,
-                  <>Then pick by what you want to do: <b>sing</b> and be answered (Sing), <b>write</b> a melody and get it scored (Compose), <b>make a piece</b> of your own, sound by sound and note by note (Studio), <b>remix</b> one of the composer's songs in a style (Remix), or <b>play an instrument</b> (Instruments).</>,
+                  <>Then pick by what you want to do: <b>sing</b> and be answered (Sing), <b>write</b> a melody and get it scored (Compose), or <b>play an instrument</b> (Instruments).</>,
                 ].map((s, i) => <li key={i} className="grid grid-cols-[2rem_1fr]"><span className="font-display text-[22px] text-sindoor">{i + 1}</span><span>{s}</span></li>)}
               </ol>
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -252,7 +220,7 @@ export default function Docs() {
             </article>
             <article id="audio" className="scroll-mt-28">
               <h2 className={h2}>Sound</h2>
-              <p className="mt-6">Nothing here is a recording. Your browser reads the notation and sings it with a small synthesiser: a voice shaped by the formants of an open “aa” (aakar), sliding between notes, tuned in just intonation over a four-string tanpura drone. The studio, Remix and the instruments are synthesised the same way, from oscillators, noise, filters and delay lines. The newest model's recordings were rendered on a Mac with a learned voice: a DDSP model (Engel et al., 2020) trained on separately miked vocal tracks from Saraga Carnatic concerts (Zenodo 10.5281/zenodo.4301737, CC BY-NC-SA 4.0). It is given only pitch and loudness, so every note and glide it sings is the model's. The real singers' lines are resynthesised from pitch tracks of concert recordings with the same voice; no recorded audio is used.</p>
+              <p className="mt-6">Nothing here is a recording. Your browser reads the notation and sings it with a small synthesiser: a voice shaped by the formants of an open “aa” (aakar), sliding between notes, tuned in just intonation over a four-string tanpura drone. The instruments are synthesised the same way, from oscillators, noise, filters and delay lines. The newest model's recordings were rendered on a Mac with a learned voice: a DDSP model (Engel et al., 2020) trained on separately miked vocal tracks from Saraga Carnatic concerts (Zenodo 10.5281/zenodo.4301737, CC BY-NC-SA 4.0). It is given only pitch and loudness, so every note and glide it sings is the model's. The real singers' lines are resynthesised from pitch tracks of concert recordings with the same voice; no recorded audio is used.</p>
             </article>
             <article id="images" className="scroll-mt-28">
               <h2 className={h2}>Images</h2>

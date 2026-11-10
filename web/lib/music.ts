@@ -134,3 +134,19 @@ export function semisToSwara(s: number) {
   const pc = ((r % 12) + 12) % 12;
   return { s: SWARAS[pc], o: Math.floor(r / 12), pc };
 }
+
+// The raga's notes as playable rows (the instruments page's strings and holes).
+export type Row = { s: string; o: number; semis: number; label: string; ratio: number };
+
+/** The raga's notes from mandra Pa to taar Ga (about two octaves), low to high. */
+export function rows(r: Raga): Row[] {
+  const out: Row[] = [];
+  for (const o of [-1, 0, 1]) {
+    for (const s of r.swaras) {
+      const semis = SWARAS.indexOf(s) + 12 * o;
+      if (semis < -5 || semis > 16) continue;
+      out.push({ s, o, semis, label: sargam(s, "latin") + (isKomal(s) ? "♭" : isTivra(s) ? "♯" : "") + (o < 0 ? "̣" : o > 0 ? "̇" : ""), ratio: RATIOS[SWARAS.indexOf(s)] * 2 ** o });
+    }
+  }
+  return out;
+}
