@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Footer } from "@/components/Footer";
 import { FloralBand } from "@/components/Ornament";
 import { Plate } from "@/components/Plate";
@@ -16,6 +16,7 @@ import { SWARAS } from "@/lib/music";
 import { type Track, pieceTrack, singVoice, stop, toggle, useData, useSite } from "@/lib/site";
 import { parse } from "@/lib/verify";
 import { ABOUT } from "@/lib/about";
+import { Evolution } from "@/components/home/Evolution";
 
 const NAMES: Record<string, string> = { S: "Sa", r: "Re", R: "Re", g: "Ga", G: "Ga", m: "Ma", M: "Ma", P: "Pa", d: "Dha", D: "Dha", n: "Ni", N: "Ni" };
 
@@ -27,7 +28,18 @@ export default function RagaPage() {
   const [lit, setLit] = useState<number | null>(null);
   const raga = data?.allRagas.find((r) => r.key === key);
   const pakad: Track | null = useMemo(() => (raga ? { id: `pakad-${raga.key}`, title: `${raga.name} · signature phrase`, sub: "the pakad", raga: raga.key, notes: parse(raga.pakad).notes } : null), [raga]);
+  const recAudio = useRef<HTMLAudioElement>(null);
+  const [recOn, setRecOn] = useState<string | null>(null);
+  useEffect(() => { recAudio.current?.pause(); setRecOn(null); }, [key]);
   if (!data || !raga || !pakad) return null;
+  const rec = data.latest.recordings.find((r) => r.raga === raga.key);
+  const playRec = (v: "vocal" | "expressive") => {
+    const a = recAudio.current, f = rec?.files[v];
+    if (!a || !f) return;
+    if (recOn === v) { a.pause(); setRecOn(null); return; }
+    stop();
+    a.src = f; a.currentTime = 0; a.play().catch(() => {}); setRecOn(v);
+  };
   const m = data.masters.ragas[raga.key] as (typeof data.masters.ragas)[string] | undefined;
   const voice = data.voices.find((v) => v.raga === raga.key);
   const newest = data.latest.pieces.filter((p) => p.raga === raga.key).sort((a, b) => b.reward - a.reward).slice(0, 3).map((p) => pieceTrack(p));
@@ -141,12 +153,39 @@ export default function RagaPage() {
         </div>
       </section>}
 
+      {rec && (
+        <section className="px-6 pb-4 pt-28 sm:px-10">
+          <div className="mx-auto max-w-[1400px]">
+            <div className="text-[12px] uppercase tracking-[0.24em] text-sepia">Hear it sung</div>
+            <div className="mt-2 font-display text-[clamp(36px,4vw,60px)] leading-none">The newest model's {raga.name}</div>
+            <div className="leaf-card mt-6 flex flex-wrap items-center gap-4 border border-rule p-5">
+              {(["vocal", "expressive"] as const).map((v) => rec.files[v] && (
+                <button key={v} onClick={() => playRec(v)} className={`rounded-full px-5 py-2.5 text-[15px] text-paper ${recOn === v ? "bg-sindoor" : "bg-kajal"}`}>{recOn === v ? "■ Stop" : v === "vocal" ? "▶ The voice" : "▶ The flute"}</button>
+              ))}
+              <span className="text-[14px] text-sepia">{rec.bars} bars · {rec.tempo} bpm · the notes exactly as it wrote them, sung with breaths and ornaments measured from real singers</span>
+              <audio ref={recAudio} onEnded={() => setRecOn(null)} preload="none" />
+            </div>
+            <p className="mt-3 max-w-[90ch] text-[13px] text-sepia">Voice: {data.latest.voices.vocal}.</p>
+          </div>
+        </section>
+      )}
+
+      {data.evolution.some((s) => s.raga === raga.key) && (
+        <section className="px-6 pt-20 sm:px-10">
+          <div className="mx-auto max-w-[1400px]">
+            <div className="text-[12px] uppercase tracking-[0.24em] text-sepia">How it learned {raga.name}</div>
+            <div className="mt-2 font-display text-[clamp(36px,4vw,60px)] leading-none">Five stages of training</div>
+            <div className="mt-6"><Evolution data={data} raga={raga.key} /></div>
+          </div>
+        </section>
+      )}
+
       <section className="px-6 py-28 sm:px-10">
         <div className="mx-auto max-w-[1400px]">
-          <div className="text-[12px] uppercase tracking-[0.24em] text-sepia">The newest model's best {raga.name} · 16 bars</div>
+          <div className="text-[12px] uppercase tracking-[0.24em] text-sepia">The newest model's best {raga.name} · 16 bars · sung by your browser</div>
           <div className="mt-8 grid gap-5 lg:grid-cols-3">{newest.map((t) => <PieceCard key={t.id} track={t} queue={newest} />)}</div>
           {pieces.length > 0 && <>
-            <div className="mt-16 text-[12px] uppercase tracking-[0.24em] text-sepia">The earlier model (v2) · 8 bars</div>
+            <div className="mt-16 text-[12px] uppercase tracking-[0.24em] text-sepia">An earlier model (v2) · 8 bars</div>
             <div className="mt-8 grid gap-5 lg:grid-cols-3">{pieces.map((t) => <PieceCard key={t.id} track={t} queue={pieces} />)}</div>
           </>}
         </div>

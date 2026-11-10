@@ -15,7 +15,7 @@ gsap.registerPlugin(ScrollTrigger);
 const STEPS = [
   { t: "Ask", d: "The model gets one line: the name of a raga. No notes, no rules." },
   { t: "Write", d: "A 0.6-billion-parameter language model writes a melody, one token at a time." },
-  { t: "Notation", d: "Out comes sargam: eight bars, four beats each. Your browser can sing it." },
+  { t: "Notation", d: "Out comes sargam, four beats to a bar (eight bars at first, sixteen now). Your browser can sing it." },
   { t: "Score", d: "A program checks it: notes in the raga, rhythm intact, no loops, and how close it sounds to real singers." },
   { t: "Learn", d: "It writes eight attempts per prompt. Those that beat the group's average become more likely. Then again, thousands of times." },
 ];

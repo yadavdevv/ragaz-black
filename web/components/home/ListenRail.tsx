@@ -10,7 +10,8 @@ import { type Data, pieceTrack } from "@/lib/site";
 export function ListenRail({ data }: { data: Data }) {
   const tracks = useMemo(() => {
     const out = [];
-    for (const k of ["yaman", "bhupali", "malkauns"]) out.push(...data.pieces.filter((p) => p.model === "v2" && p.raga === k).sort((a, b) => b.reward - a.reward).slice(0, 3));
+    // The newest model's best piece in each raga it knows.
+    for (const r of data.latest.ragas) out.push(...data.latest.pieces.filter((p) => p.raga === r.key).sort((a, b) => b.reward - a.reward).slice(0, 1));
     return out.map((p) => pieceTrack(p));
   }, [data]);
   const rail = useRef<HTMLDivElement>(null);
@@ -25,7 +26,7 @@ export function ListenRail({ data }: { data: Data }) {
           <h2 className="mt-6 font-display text-[clamp(46px,6.4vw,104px)] leading-[0.95] text-kajal">Each piece has<br /><span className="italic text-sindoor">a shape.</span></h2>
           <p className="mt-6 max-w-[42ch] text-[19px] leading-[1.6] text-sepia">The line is the melody: time runs left to right, pitch rises and falls. Press any card to hear it and watch the line light up as it plays.</p>
         </Reveal>
-        <Magnetic href="/ragas#library" cursor="Open">All 144 pieces →</Magnetic>
+        <Magnetic href="/ragas#library" cursor="Open">All {data.pieces.length + data.latest.pieces.length} pieces →</Magnetic>
       </div>
       <div
         ref={rail}

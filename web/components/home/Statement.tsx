@@ -8,7 +8,7 @@ import { type Data, pieceTrack, toggle, useSite } from "@/lib/site";
 import { usePlayhead } from "@/lib/usePlayhead";
 
 export function Statement({ data }: { data: Data }) {
-  const track = useMemo(() => pieceTrack([...data.pieces].filter((p) => p.model === "v2" && p.raga === "bhupali").sort((a, b) => b.reward - a.reward)[0]), [data]);
+  const track = useMemo(() => pieceTrack([...data.latest.pieces].filter((p) => p.raga === "bhupali").sort((a, b) => b.reward - a.reward)[0]), [data]);
   const head = usePlayhead(track.notes);
   const on = useSite((s) => s.playing && s.track?.id === track.id);
   const beats = Math.ceil(track.notes[track.notes.length - 1].t + track.notes[track.notes.length - 1].d);
@@ -17,7 +17,7 @@ export function Statement({ data }: { data: Data }) {
       <div className="mx-auto max-w-[1400px] px-6 pb-24 pt-28 sm:px-10">
         <div className="flex items-center gap-4"><Folio n={1} /><Rubric>What this is</Rubric></div>
         <ScrollWords className="mt-8 max-w-[24ch] font-display text-[clamp(38px,5.6vw,88px)] leading-[1.08] text-kajal" dim={0.14}>
-          {"A small language model that writes *ragas, eight bars at a time, from nothing but the raga's name. It learned by being *scored by a program that knows the rules, then by listening to *real singers."}
+          {`A small language model that writes *ragas, ${data.latest.bars} bars at a time, from nothing but the raga's name. It learned by being *scored by a program that knows the rules, then by listening to *real singers.`}
         </ScrollWords>
         <div className="mt-16 grid gap-10 text-[18px] leading-[1.65] text-sepia sm:grid-cols-3">
           <p><span className="font-display text-[22px] text-kajal">A raga</span> is a set of notes with a grammar: which notes are allowed, which to dwell on, and the phrase that makes it recognisable.</p>

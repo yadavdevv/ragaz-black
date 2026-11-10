@@ -32,7 +32,7 @@ export function Ensemble() {
                 <div className="font-display text-[44px] leading-none text-kajal">Tabla</div>
                 <div className="mt-1 font-display text-[24px] text-sepia">तबला</div>
               </div>
-              <p className="text-[18px] leading-[1.6] text-sepia">Its theka marks teentaal, the sixteen-beat cycle every piece here is written in: × the first beat (sam), ० the empty one (khali). The model writes eight bars, two turns of this cycle.</p>
+              <p className="text-[18px] leading-[1.6] text-sepia">Its theka marks teentaal, the sixteen-beat cycle every piece here is written in: × the first beat (sam), ० the empty one (khali). The newest model writes sixteen bars: four turns of this cycle.</p>
             </div>
           </div>
         </div>
