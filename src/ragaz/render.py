@@ -24,7 +24,58 @@ def swara_hz(swara: str, octave: int, sa_hz: float) -> float:
     return sa_hz * RATIOS[SWARAS.index(swara)] * 2.0**octave
 
 
-def expressive_cents(comp, beat: float, n: int, raga_key: str, library: dict, seed: int = 0) -> np.ndarray:
+def performance(comp, beat: float, raga_key: str, seed: int = 0) -> dict:
+    """How a singer takes the notes, beyond the notes themselves (measured against real concerts by
+    scripts/real_vs_ours.py: they spend ~19% of sung time between notes, wobble ~13 cents on a
+    held note, and pause or breathe ~37 times a minute):
+      breaths   (start, end) seconds of silence, cut from the end of a note: after a held note or
+                at a bar line, never twice within ~1.2 s, at least every ~5 s
+      kan       note index -> cents of a grace note, a quick touch of the next raga note above
+                (or below) at the note's start
+      shift     each note's start pushed or pulled a few ms (a singer is not a sequencer)
+    """
+    from ragaz.ragas import get_raga
+
+    rng = np.random.default_rng(seed + 17)
+    notes = comp.notes
+    raga = get_raga(raga_key)
+    scale = sorted(SWARAS.index(s) for s in raga.notes)
+    breaths, last = [], 0.0
+    for a, b in zip(notes, notes[1:]):
+        end = (a.start + a.duration) * beat
+        if b.start * beat - end > 0.2:  # already a rest there
+            last = b.start * beat
+            continue
+        since = end - last
+        p = 0.75 if a.duration >= 1.0 else 0.55 if abs(b.start % 4) < 1e-6 else 0.2 if a.duration >= 0.5 else 0.0
+        if since > 5.0:
+            p = max(p, 0.9)
+        if since < 1.2:
+            p = 0.0
+        if rng.random() < p:
+            dur = min(rng.uniform(0.22, 0.5), 0.5 * a.duration * beat)
+            if dur >= 0.12:
+                breaths.append((end - dur, end))
+                last = end
+    kan = {}
+    for i, nt in enumerate(notes):
+        if nt.duration * beat >= 0.3 and rng.random() < 0.45:
+            pc = SWARAS.index(nt.swara)
+            up = [x for x in scale if x > pc] or [scale[0] + 12]
+            down = [x for x in scale if x < pc] or [scale[-1] - 12]
+            kan[i] = ((up[0] if rng.random() < 0.7 else down[-1]) - pc) * 100
+    return {"breaths": breaths, "kan": kan, "shift": rng.normal(0, 0.012, len(notes)).clip(-0.03, 0.03)}
+
+
+def breath_mask(perf: dict, n: int, sr: int) -> np.ndarray:
+    """1 where the singer is singing, 0 in the breaths."""
+    m = np.ones(n)
+    for a, b in perf["breaths"]:
+        m[int(a * sr) : int(b * sr)] = 0
+    return m
+
+
+def expressive_cents(comp, beat: float, n: int, raga_key: str, library: dict, seed: int = 0, perf: dict | None = None) -> np.ndarray:
     """Pitch curve in cents above Sa, with real glides between notes and each note's real waver.
 
     Glides are curves recorded from real singers for the same interval in the same raga
@@ -37,8 +88,11 @@ def expressive_cents(comp, beat: float, n: int, raga_key: str, library: dict, se
     note_c = [SWARAS.index(x.swara) * 100 + 1200 * x.octave for x in comp.notes]
     cents = np.full(n, float(note_c[0]))
     t = np.arange(n) / SR
-    for note, c in zip(comp.notes, note_c):
-        a, b = int(note.start * beat * SR), int((note.start + note.duration) * beat * SR)
+    shift = perf["shift"] if perf else np.zeros(len(comp.notes))
+    wob = 1.3 if perf else 1.0  # real held notes wobble ~13 cents; the replayed snippets alone give ~10
+    for i, (note, c) in enumerate(zip(comp.notes, note_c)):
+        a, b = int((note.start * beat + shift[i]) * SR), int((note.start + note.duration) * beat * SR)
+        a = max(0, a)
         cents[a:] = c
         held = (b - a) / SR
         snippets = micro.get(note.swara)
@@ -50,12 +104,27 @@ def expressive_cents(comp, beat: float, n: int, raga_key: str, library: dict, se
             tiled = np.concatenate([snip if i % 2 == 0 else snip[::-1] for i in range(reps)])
             curve = np.interp(np.arange(b - a) / SR * 100, np.arange(len(tiled)), tiled)
             fade = np.clip((t[a:b] - t[a]) / 0.04, 0, 1)
-            cents[a:b] += fade * curve
+            cents[a:b] += fade * curve * wob
         else:
             w = waver.get(note.swara)
             if w and held > 0.3:
                 fade = np.clip((t[a:b] - t[a] - 0.15) / 0.25, 0, 1)
                 cents[a:b] += fade * w["depth_cents"] * np.sin(2 * np.pi * w["rate_hz"] * (t[a:b] - t[a]) + rng.uniform(0, 2 * np.pi))
+    if perf:
+        # A grace note (kan): a quick touch of a neighbouring note of the raga, falling into the note.
+        for i, k in perf["kan"].items():
+            note = comp.notes[i]
+            a = max(0, int((note.start * beat + shift[i]) * SR))
+            g = int(rng.uniform(0.045, 0.085) * SR)
+            fall = int(0.04 * SR)
+            if a + g + fall < n:
+                cents[a : a + g] += k
+                cents[a + g : a + g + fall] += k * np.linspace(1, 0, fall) ** 2
+        # A slow drift: no singer holds the pitch dead steady across a phrase.
+        walk = np.cumsum(rng.standard_normal(n // 441 + 2))
+        walk = np.convolve(walk - walk.mean(), np.ones(40) / 40, mode="same")
+        walk *= 5.0 / (np.std(walk) + 1e-9)
+        cents += np.interp(np.arange(n), np.arange(len(walk)) * 441, walk)
     for prev, nxt, c0, c1 in zip(comp.notes, comp.notes[1:], note_c, note_c[1:]):
         delta = c1 - c0
         if delta == 0:
@@ -68,7 +137,7 @@ def expressive_cents(comp, beat: float, n: int, raga_key: str, library: dict, se
             continue
         g = options[rng.integers(len(options))]
         room = beat * min(prev.duration, nxt.duration)
-        dur = min(g["seconds"], 0.6 * room)  # real singers spend ~19% of sung time between notes
+        dur = min(g["seconds"] * (1.6 if perf else 1.0), (0.85 if perf else 0.6) * room)  # real singers spend ~19% of sung time between notes
         boundary = nxt.start * beat
         a, b = int((boundary - 0.6 * dur) * SR), int((boundary + 0.4 * dur) * SR)
         a, b = max(a, 0), min(b, n)
@@ -79,7 +148,7 @@ def expressive_cents(comp, beat: float, n: int, raga_key: str, library: dict, se
     return cents
 
 
-def render_lead(text: str, sa_hz: float, tempo: float, raga_key: str | None = None, library: dict | None = None) -> np.ndarray:
+def render_lead(text: str, sa_hz: float, tempo: float, raga_key: str | None = None, library: dict | None = None, perf: dict | None = None) -> np.ndarray:
     comp = parse(text)
     if not comp.notes:
         raise ValueError("no notes to render")
@@ -105,7 +174,7 @@ def render_lead(text: str, sa_hz: float, tempo: float, raga_key: str | None = No
 
     if library is not None and raga_key is not None:
         # Expressive mode: real glides and wavers replace the generic smoothing and vibrato.
-        cents = expressive_cents(comp, beat, n, raga_key, library)
+        cents = expressive_cents(comp, beat, n, raga_key, library, perf=perf)
         cents = fftconvolve(np.pad(cents, 220, mode="edge"), np.hanning(221) / np.hanning(221).sum(), mode="same")[220:-220]
         f0 = sa_hz * 2 ** (cents / 1200)
     else:
@@ -114,6 +183,8 @@ def render_lead(text: str, sa_hz: float, tempo: float, raga_key: str | None = No
         t = np.arange(n) / SR
         f0 = np.exp(log_f0) * (1 + vib_depth * np.sin(2 * np.pi * 5.2 * t))
 
+    if perf:
+        amp = amp * breath_mask(perf, n, SR)
     # Overall envelope: soft attack and a long release after the last note.
     amp = fftconvolve(amp, np.hanning(int(0.06 * SR)) / (0.03 * SR), mode="same")
     amp = np.clip(amp, 0, 1)
@@ -179,7 +250,32 @@ def normalize(x: np.ndarray, peak: float = 1.0) -> np.ndarray:
     return x * (peak / max(1e-9, np.max(np.abs(x))))
 
 
-def render(text: str, raga: Raga, sa_hz: float = 261.63, tempo: float = 100, intro: float = 3.0, outro: float = 3.0, expressive: bool = False, voice: str | None = None) -> np.ndarray:
+def breaths_heard(perf: dict, n: int, seed: int = 4) -> np.ndarray:
+    """A soft intake of breath in each pause: band-passed noise that swells and stops."""
+    rng = np.random.default_rng(seed)
+    out = np.zeros(n)
+    sos = butter(2, [700, 3500], btype="band", fs=SR, output="sos")
+    for a, b in perf["breaths"]:
+        dur = min(0.28, b - a)
+        if dur < 0.1:
+            continue
+        m = int(dur * SR)
+        env = np.sin(np.linspace(0, np.pi, m)) ** 1.5 * np.linspace(0.6, 1, m)
+        i = int((b - dur) * SR)
+        if i + m < n:
+            out[i : i + m] += sosfilt(sos, rng.standard_normal(m)) * env * rng.uniform(0.6, 1.0)
+    return out
+
+
+def room_tone(n: int, seed: int = 6) -> np.ndarray:
+    """The faint noise of a real room and a real microphone: pink-ish, very quiet."""
+    w = np.random.default_rng(seed).standard_normal(n)
+    return sosfilt(butter(1, 900, btype="low", fs=SR, output="sos"), w) + 0.15 * w
+
+
+def render(text: str, raga: Raga, sa_hz: float = 261.63, tempo: float = 100, intro: float = 3.0, outro: float = 3.0, expressive: bool = False, voice: str | None = None, perform: bool = False) -> np.ndarray:
+    """perform: sing it as a person would (render.performance): breaths, grace notes, phrase
+    dynamics, a looser pitch, an audible intake of breath and the room around it."""
     library = None
     if expressive or voice:
         import json
@@ -188,20 +284,28 @@ def render(text: str, raga: Raga, sa_hz: float = 261.63, tempo: float = 100, int
         if not path.exists():
             raise FileNotFoundError("expressive rendering needs data/expression.json: run `python -m ragaz.expression`")
         library = json.loads(path.read_text())
+    perf = None
+    if perform and library is not None:
+        comp = parse(text)
+        perf = performance(comp, 60 / tempo, raga.key)
     if voice in ("violin", "vocal", "hvocal"):
         # Learned DDSP violin (16 kHz) driven by the same expressive pitch curve, resampled to 44.1 kHz.
         from scipy.signal import resample_poly
 
         from ragaz.ddsp import render_voice
 
-        lead = normalize(resample_poly(render_voice(text, raga.key, sa_hz, tempo, library, name=voice), 441, 160), 0.8)
+        lead = normalize(resample_poly(render_voice(text, raga.key, sa_hz, tempo, library, name=voice, perf=perf), 441, 160), 0.8)
     else:
-        lead = normalize(render_lead(text, sa_hz, tempo, raga.key, library), 0.8)
+        lead = normalize(render_lead(text, sa_hz, tempo, raga.key, library, perf=perf), 0.8)
+    if perf:
+        lead = lead + 0.05 * normalize(breaths_heard(perf, len(lead)))
     total = intro + len(lead) / SR + outro
     mix = 0.3 * normalize(render_tanpura(raga, sa_hz, total))
     start = int(intro * SR)
     mix[start : start + len(lead)] += lead
-    return normalize(reverb(mix), 0.9)
+    if perf:
+        mix += 0.004 * normalize(room_tone(len(mix)))
+    return normalize(reverb(mix, wet=0.26 if perf else 0.22), 0.9)
 
 
 def write_wav(path: str | Path, audio: np.ndarray) -> None:

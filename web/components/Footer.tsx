@@ -20,7 +20,7 @@ export function Footer() {
         <div className="mt-14 flex flex-wrap items-center justify-between gap-x-8 gap-y-4 border-t border-paper/15 pt-8 font-sans text-[15px] text-paper/65">
           <p>Made by <a href="https://github.com/yadavdevv" target="_blank" rel="noreferrer" className="text-paper hover:text-gulal">yadavdevv</a></p>
           <div className="flex items-center gap-8">
-            <a href="https://github.com/yadavdevv/ragaz" target="_blank" rel="noreferrer" className="text-paper hover:text-gulal">GitHub ↗</a>
+            <a href="https://github.com/yadavdevv/ragaz-black" target="_blank" rel="noreferrer" className="text-paper hover:text-gulal">GitHub ↗</a>
             <a href="https://www.linkedin.com/in/devesh-yadav-nnl" target="_blank" rel="noreferrer" className="text-paper hover:text-gulal">LinkedIn ↗</a>
           </div>
         </div>

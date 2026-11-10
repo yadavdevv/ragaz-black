@@ -43,6 +43,7 @@ def main() -> None:
     p_render.add_argument("--play", action="store_true", help="play with afplay (macOS)")
     p_render.add_argument("--expressive", action="store_true", help="real glides and wavers learned from recordings")
     p_render.add_argument("--voice", choices=["violin", "vocal", "hvocal"], help="learned DDSP instrument (needs a trained voice run); hvocal = Hindustani vocals (v2)")
+    p_render.add_argument("--perform", action="store_true", help="sing it as a person would: breaths, grace notes, phrase dynamics, room")
 
     p_base = sub.add_parser("baseline", help="sample from a model and score it")
     p_base.add_argument("--model", default="mlx-community/Qwen3.5-0.8B-bf16")
@@ -139,7 +140,7 @@ def main() -> None:
         from ragaz.render import render, write_wav
 
         out = args.out or (Path(args.file).with_suffix(".wav") if args.file != "-" else Path("out.wav"))
-        write_wav(out, render(text, raga, sa_hz=args.sa, tempo=args.tempo, expressive=args.expressive, voice=args.voice))
+        write_wav(out, render(text, raga, sa_hz=args.sa, tempo=args.tempo, expressive=args.expressive, voice=args.voice, perform=args.perform))
         print(f"wrote {out}")
         if args.play:
             subprocess.run(["afplay", str(out)], check=False)

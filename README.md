@@ -1,10 +1,10 @@
 # ragaz
 
-[![license](https://img.shields.io/github/license/yadavdevv/ragaz?label=license)](LICENSE)
+[![license](https://img.shields.io/github/license/yadavdevv/ragaz-black?label=license)](LICENSE)
 [![demo](https://img.shields.io/badge/demo-ragaz--black.vercel.app-B23A22?logo=vercel&logoColor=white)](https://ragaz-black.vercel.app/)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-4c1)](https://github.com/yadavdevv/ragaz/pulls)
-[![last commit](https://img.shields.io/github/last-commit/yadavdevv/ragaz?label=last%20commit)](https://github.com/yadavdevv/ragaz/commits/main)
-[![stars](https://img.shields.io/github/stars/yadavdevv/ragaz?style=flat&label=stars)](https://github.com/yadavdevv/ragaz/stargazers)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-4c1)](https://github.com/yadavdevv/ragaz-black/pulls)
+[![last commit](https://img.shields.io/github/last-commit/yadavdevv/ragaz-black?label=last%20commit)](https://github.com/yadavdevv/ragaz-black/commits/main)
+[![stars](https://img.shields.io/github/stars/yadavdevv/ragaz-black?style=flat&label=stars)](https://github.com/yadavdevv/ragaz-black/stargazers)
 
 ![Qwen3](https://img.shields.io/badge/Qwen3-0.6B-615CED)
 ![MLX](https://img.shields.io/badge/MLX-Apple%20silicon-000000?logo=apple&logoColor=white)
