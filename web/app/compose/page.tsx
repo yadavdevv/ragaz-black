@@ -259,7 +259,7 @@ export default function Compose() {
                 <span className="pb-3 text-[14px] text-kajal/50">/ 1</span>
               </div>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-paper2"><div className="h-full rounded-full bg-sindoor transition-[width] duration-500" style={{ width: `${score * 100}%` }} /></div>
-              <div className="mt-2 flex justify-between text-[12px] text-kajal/50"><span>0</span><span>ragaz averages {modelAvg.toFixed(2)}</span><span>1</span></div>
+              <div className="mt-2 flex justify-between text-[12px] text-kajal/50"><span>0</span><span>its 8-bar model (v2) averages {modelAvg.toFixed(2)}</span><span>1</span></div>
               <p className="mt-6 text-[18px] leading-[1.5]">{verdict}</p>
               {report && (
                 <ul className="mt-6 space-y-2.5 text-[15px]">

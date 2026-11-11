@@ -8,7 +8,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "mlx-lm>=0.32.0",
+    "mlx-lm>=0.32.0; sys_platform == 'darwin'",  # training (Apple silicon); composing doesn't need it
     "numpy>=2.5.3",
     "psutil>=7.2.2",
     "pyyaml>=6.0.3",
@@ -20,6 +20,12 @@ dependencies = [
 ragaz = "ragaz.cli:main"
 
 [project.optional-dependencies]
+# Compose with the released model on any computer: `pip install "ragaz[compose] @ git+…"`, then `ragaz compose yaman`.
+compose = [
+    "huggingface-hub>=0.30",
+    "torch>=2.4",
+    "transformers>=4.51",
+]
 wandb = [
     "wandb>=0.30.0",
 ]

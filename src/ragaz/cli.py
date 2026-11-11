@@ -43,6 +43,7 @@ def main() -> None:
     p_render.add_argument("--play", action="store_true", help="play with afplay (macOS)")
     p_render.add_argument("--expressive", action="store_true", help="real glides and wavers learned from recordings")
     p_render.add_argument("--voice", choices=["violin", "vocal", "hvocal"], help="learned DDSP instrument (needs a trained voice run); hvocal = Hindustani vocals (v2)")
+    p_render.add_argument("--perform", action="store_true", help="sing it as a person would: breaths, grace notes, phrase dynamics, room")
 
     p_base = sub.add_parser("baseline", help="sample from a model and score it")
     p_base.add_argument("--model", default="mlx-community/Qwen3.5-0.8B-bf16")
@@ -81,11 +82,26 @@ def main() -> None:
     p_btrain.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE")
     p_btrain.add_argument("--resume")
 
+    p_compose = sub.add_parser("compose", help="write a raga with the released model (downloads it once), score it, and save a WAV")
+    p_compose.add_argument("raga", help="e.g. yaman, bhairav, darbari (see `ragaz ragas`)")
+    p_compose.add_argument("-n", type=int, default=1, help="how many pieces")
+    p_compose.add_argument("--out", default=".", help="folder for the .txt and .wav files")
+    p_compose.add_argument("--backend", choices=["auto", "transformers", "mlx"], default="auto", help="auto: MLX if installed (Mac), else transformers")
+    p_compose.add_argument("--repo", default=None, help="Hugging Face model repo (default: the released v6)")
+    p_compose.add_argument("--seed", type=int, default=None)
+    p_compose.add_argument("--no-wav", action="store_true", help="only write and score, don't render")
+
     p_sft = sub.add_parser("sft", help="supervised fine-tuning on distilled compositions")
     p_sft.add_argument("--config", required=True)
     p_sft.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE")
 
     args = parser.parse_args()
+
+    if args.command == "compose":
+        from ragaz.compose import REPO, main as compose
+
+        compose(args.raga, args.n, args.out, args.backend, args.repo or REPO, args.seed, not args.no_wav)
+        return
 
     if args.command == "distill":
         from ragaz.distill import distill
@@ -139,7 +155,7 @@ def main() -> None:
         from ragaz.render import render, write_wav
 
         out = args.out or (Path(args.file).with_suffix(".wav") if args.file != "-" else Path("out.wav"))
-        write_wav(out, render(text, raga, sa_hz=args.sa, tempo=args.tempo, expressive=args.expressive, voice=args.voice))
+        write_wav(out, render(text, raga, sa_hz=args.sa, tempo=args.tempo, expressive=args.expressive, voice=args.voice, perform=args.perform))
         print(f"wrote {out}")
         if args.play:
             subprocess.run(["afplay", str(out)], check=False)

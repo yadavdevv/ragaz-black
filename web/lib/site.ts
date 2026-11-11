@@ -13,9 +13,12 @@ export type Journey = Record<string, Record<string, [number, number][]> & { sa?:
 export type Voice = { raga: string; recording: string; title: string; start: number; hop: number; cents: (number | null)[]; source: string };
 export type Recording = { raga: string; notation: string; files: Record<string, string>; tempo: number; bars: number; run: string; step: number | null; reward: number | null; notes: Note[] };
 export type LatestPiece = Piece & { bars: number };
-export type Latest = { label: string; style: string; run: string; step: number; bars: number; tempo: number; ragas: Raga[]; pieces: LatestPiece[]; recordings: Recording[]; voices: Record<string, string> };
+export type Latest = { label: string; style: string; run: string; step: number; bars: number; tempo: number; ragas: Raga[]; pieces: LatestPiece[]; recordings: Recording[]; voices: Record<string, string>; concerts: { recordings: number; held_out: number; ragas: number }; eval: { reward: number; no_wrong_notes: number; reader_accuracy: number; novel_bars: number; copied_example: number; realism: number }; performance: Record<"real" | "plain" | "performed", Record<string, number>> | null; baseline: { pieces: number; reward: number; no_wrong_notes: number; allowed_share: number; reader_accuracy: number; sixteen_bars: number; copied_example: number } | null };
 /** `ragas` are the three with real-singer data; `allRagas` adds Deshkar (newest model only). */
-export type Data = { ragas: Raga[]; allRagas: Raga[]; pieces: Piece[]; masters: Masters; profiles: Profiles; exhibits: Exhibit[]; journey: Journey; voices: Voice[]; latest: Latest };
+// One piece per training stage, sung the same way, scored by each stage's own reward and by one
+// shared yardstick (the newest reward at the piece's length). scripts/render_site.py, export_web.py.
+export type Stage = { raga: string; stage: string; label: string; what: string; notation: string; bars: number; asked?: number; own_score: number; pieces: number; v6_score: number; outside: number; file: string | null; parts: Record<string, number>; notes: Note[] };
+export type Data = { ragas: Raga[]; allRagas: Raga[]; pieces: Piece[]; masters: Masters; profiles: Profiles; exhibits: Exhibit[]; journey: Journey; voices: Voice[]; latest: Latest; evolution: Stage[] };
 
 /** Anything the player can play: a piece, a phrase, or something you wrote. */
 export type Track = { id: string; title: string; sub: string; raga: string; notes: Note[]; notation?: string; reward?: number };
@@ -40,10 +43,10 @@ export function useData() {
   const data = useSite((s) => s.data);
   useEffect(() => {
     if (data || loading) return;
-    loading = Promise.all(["ragas", "pieces", "masters", "profiles", "exhibits", "journey", "voices", "latest"].map((n) => fetch(`/data/${n}.json`).then((r) => r.json()))).then(
+    loading = Promise.all(["ragas", "pieces", "masters", "profiles", "exhibits", "journey", "voices", "latest", "evolution"].map((n) => fetch(`/data/${n}.json`).then((r) => r.json()))).then(
       (all) => {
-        const [ragas, pieces, masters, profiles, exhibits, journey, voices, latest] = all as [RagaData, Piece[], Masters, Profiles, Exhibit[], Journey, Voice[], Latest];
-        useSite.getState().set({ data: { ragas: ragas.ragas, allRagas: latest.ragas, pieces, masters, profiles, exhibits, journey, voices, latest } });
+        const [ragas, pieces, masters, profiles, exhibits, journey, voices, latest, evolution] = all as [RagaData, Piece[], Masters, Profiles, Exhibit[], Journey, Voice[], Latest, Stage[]];
+        useSite.getState().set({ data: { ragas: ragas.ragas, allRagas: latest.ragas, pieces, masters, profiles, exhibits, journey, voices, latest, evolution } });
       },
     );
   }, [data]);

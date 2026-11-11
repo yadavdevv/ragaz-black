@@ -12,6 +12,7 @@ Reported per side:
   dur CV         spread of durations (std / mean): 0 = metronomic
   in motion      share of sung time *between* notes (glides, ornaments), not on one
   micro cents    typical within-note wobble (std of detrended cents on notes ≥ 0.3 s)
+  breaths/min    silences of 0.25–1.5 s (a breath, a phrase ending) per minute of singing
 """
 
 import json
@@ -22,7 +23,7 @@ import numpy as np
 
 from ragaz.notation import parse
 from ragaz.render import SR as RENDER_SR
-from ragaz.render import expressive_cents
+from ragaz.render import breath_mask, expressive_cents, performance
 from ragaz.transcribe import load_pitch, load_tonic, transcribe
 
 FEATURES = Path("data/external/compmusic/features")
@@ -60,13 +61,14 @@ def stats(times: np.ndarray, hz: np.ndarray, tonic: float) -> dict:
         "dur_cv": float(durs.std() / durs.mean()),
         "in_motion": float((voiced & off_grid).sum() / voiced.sum()),
         "micro_cents": float(np.median(wobble)) if wobble else 0.0,
+        "breaths_min": float(((gaps >= 0.25) & (gaps <= 1.5)).sum() / (sung / 60)),
     }
 
 
-def ours(tempo: float, step: int = 60, run: str = "runs/grpo/v4-final-20261009-2257") -> list[dict]:
+def ours(tempo: float, step: int = 60, run: str = "runs/grpo/v4-final-20261009-2257", rows: list[dict] | None = None, perform: bool = False) -> list[dict]:
     lib = json.loads(Path("data/expression.json").read_text())
     run = Path(run)
-    rows = [json.loads(l) for l in open(run / "eval_samples.jsonl") if f'"step": {step},' in l and '"bare"' in l]
+    rows = rows if rows is not None else [json.loads(line) for line in open(run / "eval_samples.jsonl") if f'"step": {step},' in line and '"bare"' in line]
     out = []
     for r in rows:
         if r["raga"] not in RAGAS:
@@ -76,19 +78,28 @@ def ours(tempo: float, step: int = 60, run: str = "runs/grpo/v4-final-20261009-2
             continue
         beat = 60 / tempo
         n = int((comp.beats * beat + 0.5) * RENDER_SR)
-        cents = expressive_cents(comp, beat, n, r["raga"], lib)
+        perf = performance(comp, beat, r["raga"]) if perform else None
+        cents = expressive_cents(comp, beat, n, r["raga"], lib, perf=perf)
         t = np.arange(0, n / RENDER_SR, HOP)
-        c = cents[(t * RENDER_SR).astype(int).clip(0, n - 1)]
+        idx = (t * RENDER_SR).astype(int).clip(0, n - 1)
+        c = cents[idx]
         tonic = 261.63
-        s = stats(t, tonic * 2 ** (c / 1200), tonic)
+        hz = tonic * 2 ** (c / 1200)
+        if perf:
+            hz = hz * breath_mask(perf, n, RENDER_SR)[idx]  # breaths are unvoiced
+        s = stats(t, hz, tonic)
         if s:
             out.append(s)
     return out
 
 
+SUMMARY: dict[str, dict] = {}
+
+
 def summarize(label: str, rows: list[dict]) -> None:
-    keys = ["notes_per_s", "dur_p10", "dur_p50", "dur_p90", "holds_1s", "dur_cv", "in_motion", "micro_cents"]
+    keys = ["notes_per_s", "dur_p10", "dur_p50", "dur_p90", "holds_1s", "dur_cv", "in_motion", "micro_cents", "breaths_min"]
     vals = {k: statistics.median(r[k] for r in rows) for k in keys}
+    SUMMARY[label] = {k: round(v, 3) for k, v in vals.items()} | {"n": len(rows)}
     print(f"{label:<26}" + "".join(f"{vals[k]:>11.2f}" for k in keys))
 
 
@@ -100,7 +111,7 @@ def main() -> None:
             s = stats(t, hz, load_tonic(p.with_suffix(".tonicFine")))
             if s:
                 real.append(s)
-    print(f"{'':<26}" + "".join(f"{k:>11}" for k in ["notes/s", "dur p10", "dur p50", "dur p90", "holds≥1s", "dur CV", "in motion", "micro c"]))
+    print(f"{'':<26}" + "".join(f"{k:>11}" for k in ["notes/s", "dur p10", "dur p50", "dur p90", "holds≥1s", "dur CV", "in motion", "micro c", "breaths"]))
     summarize(f"real ({len(real)} recordings)", real)
     for tempo in (72, 120):
         summarize(f"ours v4 @ {tempo} bpm", ours(tempo))
@@ -110,8 +121,15 @@ def main() -> None:
     best = __import__("json").loads((v5e / "checkpoints" / "best" / "state.json").read_text())["step"]
     for tempo in (90, 100):
         summarize(f"ours v5e (16 bars) @ {tempo} bpm", ours(tempo, best, str(v5e)))
+    latest = json.loads(Path("web/public/data/latest.json").read_text())
+    v6 = [{"raga": p["raga"], "notation": p["notation"]} for p in latest["pieces"]]
+    summarize(f"ours v6 (site) @ {latest['tempo']} bpm", ours(latest["tempo"], rows=v6))
+    summarize("ours v6, performed", ours(latest["tempo"], rows=v6, perform=True))
     Path("reports").mkdir(exist_ok=True)
     Path("reports/real_vs_ours.json").write_text(json.dumps({"real": real}, indent=1))
+    # What the site quotes (export_web.py): real singers, the v6 pieces as written, and as performed.
+    keys = [k for k in SUMMARY if k.startswith("real")] + [k for k in SUMMARY if k.startswith("ours v6")]
+    Path("reports/performance.json").write_text(json.dumps({"real": SUMMARY[keys[0]], "plain": SUMMARY[keys[1]], "performed": SUMMARY[keys[2]]}, indent=1))
 
 
 if __name__ == "__main__":

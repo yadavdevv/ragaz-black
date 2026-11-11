@@ -17,15 +17,15 @@ const sans = Inter({ subsets: ["latin"], variable: "--font-sans" });
 export const metadata: Metadata = {
   metadataBase: new URL("https://ragaz-black.vercel.app"),
   title: "ragaz",
-  description: "A small language model that composes Hindustani ragas.",
+  description: "A small language model that learned to compose Hindustani ragas on a MacBook. Hum to it and it answers in your raga; hear how it learned.",
   openGraph: {
-    title: "ragaz",
-    description: "A small language model that composes Hindustani ragas: listen, play the instruments, compose and get scored.",
+    title: "ragaz: a language model that composes ragas",
+    description: "A 0.6B model that learned to compose Hindustani ragas on a MacBook. Hum 10 seconds and it names your raga and answers in it.",
     url: "/",
     siteName: "ragaz",
     type: "website",
   },
-  twitter: { card: "summary", title: "ragaz", description: "A small language model that composes Hindustani ragas." },
+  twitter: { card: "summary_large_image", title: "ragaz: a language model that composes ragas", description: "A 0.6B model that learned to compose Hindustani ragas on a MacBook. Hum 10 seconds and it names your raga and answers in it." },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

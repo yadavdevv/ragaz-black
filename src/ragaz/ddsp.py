@@ -306,22 +306,35 @@ def loudness_reference(name: str = "violin") -> tuple[float, float]:
     return float(np.median(voiced)), float(np.percentile(voiced, 90) - np.percentile(voiced, 10))
 
 
-def bowed_loudness(comp, beat: float, frames: int, level: float, spread: float, attack: float = 0.08) -> np.ndarray:
-    """A loudness curve (dB per frame): each note swells in, sustains, and eases off; silence around."""
+def bowed_loudness(comp, beat: float, frames: int, level: float, spread: float, attack: float = 0.08, perf: dict | None = None) -> np.ndarray:
+    """A loudness curve (dB per frame): each note swells in, sustains, and eases off; silence around.
+    With a performance plan (render.performance): silent in the breaths, each phrase between them
+    rising and falling a few dB, and every note a little louder or softer than the last."""
     fps = SR / HOP
     ld = np.full(frames, level - 60.0)
+    rng = np.random.default_rng(5)
     for note in comp.notes:
         a, b = int(note.start * beat * fps), int((note.start + note.duration) * beat * fps)
         n = max(1, b - a)
         t = np.arange(n) / fps
         swell = np.minimum(1, t / attack)  # 80 ms bow attack
         ease = 1 - 0.25 * (t / max(t[-1], 1e-6))  # slight decay across the note
-        ld[a:b] = level - 0.5 * spread + spread * 0.8 * swell * ease
+        touch = rng.normal(0, 1.2) if perf else 0.0
+        ld[a:b] = level - 0.5 * spread + spread * 0.8 * swell * ease + touch
+    if perf:
+        # Phrase arcs: between breaths, a swell to the middle and an easing off (about ±3 dB).
+        edges = [0] + [int(e * fps) for _, e in perf["breaths"]] + [frames]
+        for a, b in zip(edges, edges[1:]):
+            if b - a > 4:
+                x = np.linspace(0, 1, b - a)
+                ld[a:b] += 6 * np.sin(np.pi * x) ** 0.8 - 3
+        for a, b in perf["breaths"]:
+            ld[int(a * fps) : int(b * fps)] = level - 60.0
     k = max(1, int(0.02 * fps))
     return np.convolve(np.pad(ld, k, mode="edge"), np.ones(k) / k, mode="same")[k:-k]
 
 
-def render_voice(text: str, raga_key: str, sa_hz: float, tempo: float, library: dict, model=None, name: str = "violin") -> np.ndarray:
+def render_voice(text: str, raga_key: str, sa_hz: float, tempo: float, library: dict, model=None, name: str = "violin", perf: dict | None = None) -> np.ndarray:
     """Composer notation → expressive pitch (real glides/wavers) + bowed loudness → DDSP violin, at 16 kHz."""
     import torch
 
@@ -334,11 +347,11 @@ def render_voice(text: str, raga_key: str, sa_hz: float, tempo: float, library: 
     seconds = comp.beats * beat + 1.0
     frames = int(seconds * SR / HOP)
     n_render = int(seconds * RENDER_SR)
-    cents = expressive_cents(comp, beat, n_render, raga_key, library)
+    cents = expressive_cents(comp, beat, n_render, raga_key, library, perf=perf)
     cents_frames = cents[(np.arange(frames) * HOP * RENDER_SR / SR).astype(int).clip(0, n_render - 1)]
     f0 = sa_hz * 2 ** (cents_frames / 1200)
     level, spread = loudness_reference(name)
-    ld = bowed_loudness(comp, beat, frames, level, spread, attack=0.13 if name == "vocal" else 0.08)  # a singer swells in more slowly than a bow
+    ld = bowed_loudness(comp, beat, frames, level, spread, attack=0.13 if name in ("vocal", "hvocal") else 0.08, perf=perf)  # a singer swells in more slowly than a bow
     model = model or load_voice(name=name)
     with torch.no_grad():
         audio = model(torch.from_numpy(f0).float()[None], torch.from_numpy(ld).float()[None])[0].numpy()

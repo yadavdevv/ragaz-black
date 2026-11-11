@@ -1,7 +1,7 @@
 "use client";
 
 // The newest model (v5e): its 16-bar pieces as actual recordings (rendered on the Mac with the
-// learned DDSP voice of Carnatic women singers, or the flute synth), with the notation lit in sync.
+// learned DDSP voice of Hindustani concert singers, or the flute synth), with the notation lit in sync.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bhatkhande } from "@/components/Bhatkhande";
@@ -122,7 +122,7 @@ export function Newest({ data }: { data: Data }) {
               </div>
             </Hashiya>
             <p className="mt-5 max-w-[80ch] font-sans text-[13px] leading-[1.6] text-sepia">
-              {voice === "vocal" ? `Voice: ${L.voices.vocal}.` : `Flute: ${L.voices.expressive}.`} Rendered on the Mac from the model's notation; the notes are exactly what it wrote. Run {rec.run}, step {rec.step}{rec.reward !== null ? `, scored ${rec.reward.toFixed(2)} by its v5 reward` : ""}.
+              {voice === "vocal" ? `Voice: ${L.voices.vocal}.` : `Flute: ${L.voices.expressive}.`} Rendered on the Mac from the model's notation; the notes are exactly what it wrote. Run {rec.run}, step {rec.step}{rec.reward !== null ? `, scored ${rec.reward.toFixed(2)} by its own ${L.style} reward` : ""}.
             </p>
           </div>
           <div className="space-y-6">

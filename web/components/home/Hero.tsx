@@ -17,7 +17,7 @@ export function Hero({ data }: { data: Data }) {
     for (let i = 0; out.length < 30; i++) for (const l of lists) if (l[i] && out.length < 30) out.push(pieceTrack(l[i]));
     return out;
   }, [data]);
-  const best = useMemo(() => pieceTrack([...data.pieces].filter((p) => p.model === "v2" && p.raga === "yaman").sort((a, b) => b.reward - a.reward)[0]), [data]);
+  const best = useMemo(() => pieceTrack([...data.latest.pieces].filter((p) => p.raga === "yaman").sort((a, b) => b.reward - a.reward)[0]), [data]);
 
   return (
     <section className="relative overflow-hidden pt-20">
@@ -34,8 +34,9 @@ export function Hero({ data }: { data: Data }) {
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-4">
             <Magnetic variant="solid" size="lg" cursor="Play" onClick={() => { useSite.getState().set({ queue: tracks }); play(best, { open: true }); }}>▶ Play a raga</Magnetic>
-            <Magnetic variant="line" size="lg" href="/ragas#library" cursor="Open">Browse 144 pieces</Magnetic>
+            <Magnetic variant="line" size="lg" href="/sing" cursor="Sing">Hum 10 seconds: which raga is in your voice?</Magnetic>
           </div>
+          <a href="/ragas#library" className="mt-5 inline-block text-[15px] text-sepia underline decoration-rule underline-offset-4 hover:text-sindoor">or browse all {data.pieces.length + data.latest.pieces.length} pieces it wrote →</a>
         </div>
 
         <div className="relative order-1 lg:order-2">
