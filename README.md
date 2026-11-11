@@ -157,6 +157,14 @@ tests/
 web/              the website (Next.js) — see web/README.md
 ```
 
+## Licences
+
+The **code** is MIT (`LICENSE`). The **model** on Hugging Face is CC BY-NC 4.0 (its Qwen3-0.6B base stays Apache-2.0). The **recordings** in `web/public/audio/` are CC BY-NC-SA 4.0, because their voice was trained on Saraga. The **paintings** in `web/public/art/` and the **site data** derived from concert pitch tracks keep their own licences. All of it, with full citations, is in [`NOTICE.md`](NOTICE.md).
+
+## Citing
+
+Cite ragaz with [`CITATION.cff`](CITATION.cff) (GitHub's "Cite this repository"), and please also cite the datasets it is built on: Gulati et al., ISMIR 2016 and ICASSP 2016 (the CompMusic raga dataset), and Saraga (doi:10.5281/zenodo.4301737). Details in `NOTICE.md`.
+
 ## Data and credits
 
 - **CompMusic Indian Art Music Raga Recognition Dataset** (features), Gulati et al., Zenodo 10.5281/zenodo.7278506, CC BY 4.0: pitch tracks and resting-note annotations of concert recordings in 12 ragas (118 used for the v6 reward, 36 of them held out) for the real-music reward and the Sing-to-it reader. Only pitch tracks, never audio.

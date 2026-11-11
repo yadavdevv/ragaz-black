@@ -1,0 +1,66 @@
+cff-version: 1.2.0
+message: "If you use ragaz (the code, the model or the data it publishes), please cite it as below, and cite the datasets it is built on (see NOTICE.md)."
+title: "ragaz: a small language model taught to compose Hindustani ragas with GRPO"
+authors:
+  - family-names: Yadav
+    given-names: Devesh
+type: software
+license: MIT
+repository-code: "https://github.com/yadavdevv/ragaz-black"
+url: "https://ragaz-black.vercel.app"
+date-released: 2026-11-11
+keywords: [hindustani music, raga, symbolic music generation, grpo, reinforcement learning, lora, qwen3]
+references:
+  - type: dataset
+    title: "Indian Art Music Raga Recognition Dataset (features)"
+    authors:
+      - {family-names: Gulati, given-names: Sankalp}
+      - {family-names: Serrà, given-names: Joan}
+      - {family-names: Ganguli, given-names: Kaustuv Kanti}
+      - {family-names: Şentürk, given-names: Sertan}
+      - {family-names: Serra, given-names: Xavier}
+    doi: 10.5281/zenodo.7278506
+    year: 2016
+    license: CC-BY-4.0
+  - type: conference-paper
+    title: "Time-delayed melody surfaces for rāga recognition"
+    authors:
+      - {family-names: Gulati, given-names: Sankalp}
+      - {family-names: Serrà, given-names: Joan}
+      - {family-names: Ganguli, given-names: Kaustuv Kanti}
+      - {family-names: Şentürk, given-names: Sertan}
+      - {family-names: Serra, given-names: Xavier}
+    collection-title: "Proceedings of the 17th International Society for Music Information Retrieval Conference (ISMIR)"
+    year: 2016
+    start: 751
+    end: 757
+  - type: conference-paper
+    title: "Phrase-based rāga recognition using vector space modeling"
+    authors:
+      - {family-names: Gulati, given-names: Sankalp}
+      - {family-names: Serrà, given-names: Joan}
+      - {family-names: Ishwar, given-names: Vignesh}
+      - {family-names: Şentürk, given-names: Sertan}
+      - {family-names: Serra, given-names: Xavier}
+    collection-title: "Proceedings of the 41st IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)"
+    year: 2016
+    start: 66
+    end: 70
+  - type: dataset
+    title: "Saraga: research datasets of Indian Art Music"
+    authors:
+      - {family-names: Bozkurt, given-names: Barış}
+      - {family-names: Srinivasamurthy, given-names: Ajay}
+      - {family-names: Gulati, given-names: Sankalp}
+      - {family-names: Serra, given-names: Xavier}
+    doi: 10.5281/zenodo.4301737
+    version: "1.5"
+    year: 2020
+    license: CC-BY-NC-SA-4.0
+  - type: article
+    title: "Qwen3 Technical Report"
+    authors:
+      - {name: "Qwen Team"}
+    identifiers:
+      - {type: other, value: "arXiv:2505.09388"}
+    year: 2025
