@@ -58,6 +58,32 @@ main(a.raga, a.n, a.out, a.backend, REPO, a.seed, not a.no_wav)
 '''
 
 
+LICENSE = """ragaz: Qwen3-0.6B with the ragaz LoRA merged (and the LoRA alone, in mlx-adapter/)
+Copyright (c) 2026 Devesh Yadav
+
+The ragaz changes (the trained LoRA weights, merged or separate) are licensed under the Creative
+Commons Attribution-NonCommercial 4.0 International licence (CC BY-NC 4.0):
+https://creativecommons.org/licenses/by-nc/4.0/legalcode
+
+The base model, Qwen3-0.6B by the Qwen Team, is licensed under the Apache License 2.0, a copy of
+which is in LICENSE-Qwen3. See NOTICE.
+"""
+
+NOTICE = """This model is a modified version of Qwen3-0.6B (Qwen Team, Apache License 2.0,
+https://huggingface.co/Qwen/Qwen3-0.6B; Qwen3 Technical Report, arXiv:2505.09388).
+
+Modifications: LoRA adapters (rank 16, 16 layers) trained with supervised fine-tuning and GRPO
+reinforcement learning to compose Hindustani ragas in sargam notation, then merged into the base
+weights (mlx_lm fuse). The tokenizer and architecture are unchanged.
+
+ragaz-data/ is derived from the Indian Art Music Raga Recognition Dataset (features), Gulati et al.,
+doi:10.5281/zenodo.7278506, CC BY 4.0 (pitch tracks only). Please cite: S. Gulati, J. Serra,
+K. K. Ganguli, S. Senturk, X. Serra, "Time-delayed melody surfaces for raga recognition", ISMIR 2016;
+and S. Gulati, J. Serra, V. Ishwar, S. Senturk, X. Serra, "Phrase-based raga recognition using
+vector space modeling", ICASSP 2016.
+"""
+
+
 def card() -> str:
     latest = json.loads(Path("web/public/data/latest.json").read_text())
     e, conc, b = latest["eval"], latest["concerts"], latest["baseline"]
@@ -171,7 +197,24 @@ GRPO (eight attempts per prompt, advantage = reward minus the group mean, over i
 
 ## Licence and credits
 
-Released under **CC BY-NC 4.0** (non-commercial). Base model: [Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B) (Apache-2.0). The reward, the reader and `ragaz-data/` are derived from the **CompMusic Indian Art Music Raga Recognition Dataset** (features), Gulati et al., Zenodo 10.5281/zenodo.7278506, CC BY 4.0: pitch tracks only, no audio.
+The ragaz changes are released under **CC BY-NC 4.0** (non-commercial; `LICENSE`). This is a modified version of [Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B), whose licence, Apache-2.0, is in `LICENSE-Qwen3`; what changed is in `NOTICE`. The reward, the reader and `ragaz-data/` are derived from the **Indian Art Music Raga Recognition Dataset** (features), Gulati et al., doi:10.5281/zenodo.7278506, CC BY 4.0: pitch tracks only, no audio.
+
+## Citation
+
+```bibtex
+@software{{yadav2026ragaz,
+  author = {{Yadav, Devesh}},
+  title  = {{ragaz: a small language model taught to compose Hindustani ragas with GRPO}},
+  year   = {{2026}},
+  url    = {{{GITHUB}}}
+}}
+```
+
+Please also cite the data it learned from:
+
+- S. Gulati, J. Serrà, K. K. Ganguli, S. Şentürk, X. Serra. *Time-delayed melody surfaces for rāga recognition.* ISMIR 2016, pp. 751–757.
+- S. Gulati, J. Serrà, V. Ishwar, S. Şentürk, X. Serra. *Phrase-based rāga recognition using vector space modeling.* IEEE ICASSP 2016, pp. 66–70.
+- Qwen Team. *Qwen3 Technical Report.* arXiv:2505.09388, 2025.
 """
 
 
@@ -187,6 +230,10 @@ def build() -> None:
     for f in ("real_profiles_v6.json", "expression.json"):
         shutil.copy(Path("data") / f, OUT / "ragaz-data" / f)
     (OUT / "compose.py").write_text(SCRIPT)
+    # Licences: ours (CC BY-NC 4.0) for the changes, and Qwen3's Apache-2.0, which a modified version must carry.
+    (OUT / "LICENSE").write_text(LICENSE)
+    (OUT / "NOTICE").write_text(NOTICE)
+    shutil.copy("licenses/Qwen3-Apache-2.0.txt", OUT / "LICENSE-Qwen3")
     (OUT / "README.md").write_text(card())
     size = sum(p.stat().st_size for p in OUT.rglob("*") if p.is_file()) / 1e9
     print(f"built {OUT} ({size:.2f} GB)")

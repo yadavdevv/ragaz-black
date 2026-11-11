@@ -313,6 +313,24 @@ export default function Docs() {
                 <li className="border-t border-rule pt-3"><b>Raga rules:</b> standard Bhatkhande descriptions (notes, vadi and samvadi, pakad, hour), not yet reviewed by a musician.</li>
                 <li className="border-t border-rule pt-3"><b>Paintings:</b> museum open-access collections, listed under Images.</li>
               </ul>
+              <h3 className="mt-8 font-display text-[26px] text-kajal">Licences</h3>
+              <ul className="mt-3 space-y-2 text-[16px]">
+                <li className="border-t border-rule pt-2"><b>Code:</b> MIT.</li>
+                <li className="border-t border-rule pt-2"><b>The model</b> (on Hugging Face): CC BY-NC 4.0 for the ragaz changes; its base, Qwen3-0.6B, stays Apache-2.0.</li>
+                <li className="border-t border-rule pt-2"><b>The recordings:</b> CC BY-NC-SA 4.0, because their voice was trained on Saraga (CC BY-NC-SA 4.0).</li>
+                <li className="border-t border-rule pt-2"><b>Data derived from concert pitch tracks</b> (profiles, the reader, the real singers' lines): CC BY 4.0, from the CompMusic dataset.</li>
+                <li className="border-t border-rule pt-2"><b>Paintings:</b> each its own, listed under Images.</li>
+              </ul>
+              <h3 className="mt-8 font-display text-[26px] text-kajal">Citing</h3>
+              <p className="mt-3 text-[16px]">If you use ragaz, cite it from the repository (CITATION.cff), and please cite what it is built on:</p>
+              <ul className="mt-3 space-y-2 text-[15px]">
+                <li className="border-t border-rule pt-2">S. Gulati, J. Serrà, K. K. Ganguli, S. Şentürk, X. Serra. Time-delayed melody surfaces for rāga recognition. ISMIR 2016, pp. 751–757.</li>
+                <li className="border-t border-rule pt-2">S. Gulati, J. Serrà, V. Ishwar, S. Şentürk, X. Serra. Phrase-based rāga recognition using vector space modeling. IEEE ICASSP 2016, pp. 66–70.</li>
+                <li className="border-t border-rule pt-2">B. Bozkurt, A. Srinivasamurthy, S. Gulati, X. Serra. Saraga: research datasets of Indian Art Music, v1.5. Zenodo, doi:10.5281/zenodo.4301737.</li>
+                <li className="border-t border-rule pt-2">Qwen Team. Qwen3 Technical Report. arXiv:2505.09388, 2025.</li>
+                <li className="border-t border-rule pt-2">J. Engel, L. Hantrakul, C. Gu, A. Roberts. DDSP: Differentiable Digital Signal Processing. ICLR 2020.</li>
+                <li className="border-t border-rule pt-2">Z. Shao et al. DeepSeekMath (GRPO). arXiv:2402.03300, 2024.</li>
+              </ul>
             </article>
             <article id="images" className="scroll-mt-28">
               <h2 className={h2}>Images</h2>
